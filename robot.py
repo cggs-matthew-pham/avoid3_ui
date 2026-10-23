@@ -94,8 +94,8 @@ SAG_START_X = 160
 SAG_PER_MM = 0.0
 
 # ---- Board layout ----
-# Matches the printed sheet (avoid_three_final_A4_landscape.pdf) and
-# hardware/board.scad. Seen from the player's side, robot at the far edge:
+# Matches the printed sheet (hardware/avoid3_sheet_A4.pdf, made by
+# hardware/make_sheet.py) and hardware/board.scad. Seen from the player's side, robot at the far edge:
 #
 #                  ROBOT
 #     1   2   3   4   5    R1  Y1
@@ -111,7 +111,11 @@ SAG_PER_MM = 0.0
 # x is distance out from the robot, y is left/right (+y = the robot's left,
 # which is the player's right). These positions are only starting points
 # for nudging; calibrated values replace them.
-PITCH = 40            # centre to centre, rows and columns (sheet: 20 mm squares, 40 mm apart)
+# Rows are close together and columns wider apart: the gripper closes
+# left-right (across the columns), so the fingers never reach forwards or
+# back. That keeps the far corners in reach and the near row off the base.
+ROW_PITCH = 25        # mm between row centres (towards / away from the robot)
+COLUMN_PITCH = 35     # mm between column centres (left / right)
 
 # Where the sheet sits. Lay it landscape, long edge against the robot, with
 # the centre of the robot's base lined up with board column 4 (the middle of
@@ -119,7 +123,7 @@ PITCH = 40            # centre to centre, rows and columns (sheet: 20 mm squares
 # to the paper edge. Measure it and set it here; option 4 in
 # test_mycobot_squares.py walks you through it.
 SHEET_GAP = 60        # mm, base rotation centre to the paper edge
-EDGE_TO_TOP_ROW = 25  # mm, paper edge to the centre of the top row (from the sheet)
+EDGE_TO_TOP_ROW = 55  # mm, paper edge to the centre of the top row (from the sheet)
 GRID_NEAR_X = SHEET_GAP + EDGE_TO_TOP_ROW   # mm from robot to the centre of the top row (1-5)
 SHEET_COLUMNS = 7     # 5 board columns, then Red, then Yellow
 CENTRE_COLUMN = 3     # sheet column (0-6) in line with the robot base: 3 = board column 4
@@ -131,7 +135,7 @@ STAGING_COLUMN = {1: 5, 2: 6}   # sheet column for Red (1) and Yellow (2)
 
 
 def _xy(row, sheet_column):
-    return (GRID_NEAR_X + row * PITCH, (sheet_column - CENTRE_COLUMN) * PITCH)
+    return (GRID_NEAR_X + row * ROW_PITCH, (sheet_column - CENTRE_COLUMN) * COLUMN_PITCH)
 
 
 SQUARES = [_xy(i // GRID_COLUMNS, i % GRID_COLUMNS) for i in range(GRID_ROWS * GRID_COLUMNS)]
@@ -193,7 +197,10 @@ STACK_SIZES = {
 SQUARE_Z = [DOWN_Z] * len(SQUARES)
 STAGING_Z = {player: [DOWN_Z] * len(spots) for player, spots in STAGING.items()}
 
-TOOL_DOWN = [180, 0, 0]  # rx, ry, rz: tool pointing straight down
+# rx, ry, rz: tool pointing straight down. rz also sets which way the
+# gripper closes: it must close left-right (across the columns). If yours
+# closes towards / away from the robot, try rz = 90.
+TOOL_DOWN = [180, 0, 0]
 
 PLAYER_LETTER = {1: "r", 2: "y"}
 

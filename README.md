@@ -44,12 +44,16 @@ computer hard (looks ahead as far as `THINK_SECONDS` in `game.py` allows;
 | `robot.py` | Layout, calibration file, gripper/suction, pick and place. |
 | `test_mycobot_squares.py` | Calibration tool. |
 | `calibrate_zero.py` | Joint zero calibration (unchanged from tic-tac-toe). |
-| `hardware/board.scad` | Pocket board, blocks and a printable paper template. |
+| `hardware/avoid3_sheet_A4.pdf` | The printable board and block labels. |
+| `hardware/make_sheet.py` | Makes that PDF. |
+| `hardware/board.scad` | 3D-printable pocket board and blocks (same layout). |
 
 ## The layout
 
-Matches the printed sheet `avoid_three_final_A4_landscape.pdf`: 7 columns x 5
-rows on a 40 mm grid, robot at the far (top) edge.
+Print `hardware/avoid3_sheet_A4.pdf` at 100% (page 1 is the board, page 2 is
+labels for the block tops). Remake it with `python3 hardware/make_sheet.py`
+(needs `pip install reportlab`) after changing the spacing. 7 columns x 5
+rows, robot at the top edge:
 
 ```
                  ROBOT
@@ -60,6 +64,17 @@ rows on a 40 mm grid, robot at the far (top) edge.
    21  22  23  24  25    R5  Y5      <- bottom row: fills first
                 PLAYER
 ```
+
+Rows are 25 mm apart and columns 35 mm apart. The gripper closes
+left-right (across the columns), so the fingers never reach forwards or
+back and the rows can be close. That keeps the far corners about 240 mm from
+the base (inside the 280 mm rated reach) and the nearest row about 115 mm out
+(well clear of the base). If your gripper closes towards / away from the
+robot, change `TOOL_DOWN`'s rz to 90 in `robot.py`.
+
+Spacing lives in three places that must match: `ROW_PITCH` / `COLUMN_PITCH`
+/ `EDGE_TO_TOP_ROW` in `robot.py`, the same names in `hardware/make_sheet.py`,
+and `row_pitch` / `column_pitch` in `hardware/board.scad`.
 
 **Set up first:** `test_mycobot_squares.py`, option 4. It:
 
@@ -77,8 +92,8 @@ rows on a 40 mm grid, robot at the far (top) edge.
    it can reach them. Coordinate moves closer than 80 mm to the base
    (`NEAR_LIMIT`) are refused, because the arm folds over itself there.
 
-At a 60 mm gap the far corners (square 21 and Y5) are about 273 mm from the
-base, inside the arm's rated 280 mm. Portrait would put them over 320 mm.
+The sheet is designed for a 60 mm gap: the far corners are then about
+240 mm from the base and the nearest squares about 115 mm.
 
 ## End effector
 
@@ -153,5 +168,4 @@ console prints the board size and a reach check. `PART`: `board`, `blocks`
 (15 + 15), `both`, or `template` (2D outlines to export as SVG/PDF and print
 at 100%).
 
-At 40 mm spacing the board is 296 x 216 mm, bigger than most print beds; at
-32 mm it is 240 x 176 mm.
+With the default spacing the board is 261 x 141 mm.

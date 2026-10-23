@@ -645,7 +645,7 @@ in the right place first, then fix it down.
 4. Set the distance. Measure from the centre of the part of the base that
    turns (the middle of the round turntable, not the edge of the box) to
    the edge of the paper.
-     - Aim for 40-60 mm.
+     - Use 60 mm: the sheet is designed for it (printed by the ROBOT mark).
      - Closer helps the far corners (squares 21 and Y5).
      - Too close and the arm can't bend down onto the nearest squares.
 """

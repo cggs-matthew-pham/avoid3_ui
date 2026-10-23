@@ -2,8 +2,9 @@
 //
 // A 5 x 5 board plus a Red and a Yellow staging column of 5 pockets, each
 // holding a stack of 3 blocks. Same layout as the printed sheet
-// (avoid_three_final_A4_landscape.pdf): every pocket on one grid, 7 columns
-// by 5 rows.
+// (avoid3_sheet_A4.pdf, from make_sheet.py): 7 columns by 5 rows, rows
+// 25 mm apart and columns 35 mm apart. The gripper closes left-right, so
+// only the columns need room for the open fingers.
 //
 // A block dropped a couple of mm off-centre lands on a sloped wall and
 // slides down onto the flat floor. Staging pockets do the same for the
@@ -27,14 +28,14 @@
 // calibrate "13" at the pocket labelled 13, "r1" at R1, and so on.
 //
 // robot.py uses the same layout for its starting positions. If you change
-// pitch, staging_gap or robot_gap here, change PITCH and SHEET_GAP in
-// robot.py to match.
+// row_pitch, column_pitch or staging_gap here, change ROW_PITCH and
+// COLUMN_PITCH in robot.py (and make_sheet.py) to match.
 //
 // REACH: the console line "Reach:" gives the distance from the robot base
-// to the farthest pocket. Keep it under about 280 mm (the rated reach) (the arm has to point
-// straight down there). At the sheet's 40 mm pitch it is well over; a
-// pitch of 30-32 mm brings it inside. Check the gripper fingers still fit
-// between neighbouring blocks before going smaller.
+// to the farthest pocket. Keep it under about 280 mm (the rated reach; the
+// arm has to point straight down there). With these defaults it is about
+// 240 mm. Check the gripper fingers still fit between neighbouring blocks
+// before making the pitches smaller.
 
 /* [What to show / export] */
 PART = "both";          // "board", "blocks", "both" (preview only) or "template"
@@ -53,13 +54,14 @@ depth      = 3;         // board pocket depth. Shallow, so gripper fingers clear
 staging_depth = 4;      // staging pockets: a little deeper to steady a 3-high stack
 
 /* [Layout] */
-pitch          = 40;    // centre-to-centre spacing, rows and columns. Sheet: 40.
+row_pitch      = 25;    // centre-to-centre, towards / away from the robot. Sheet: 25.
+column_pitch   = 35;    // centre-to-centre, left / right. Sheet: 35. Room for the open fingers.
 staging_gap    = 0;     // extra space between the board and the staging columns. Sheet: 0.
 margin         = 8;     // border around everything
 thickness      = 7;     // board thickness (floor under pockets = thickness - depth)
 
 /* [Robot position, for the reach check only] */
-robot_gap          = 85;  // base centre to the centre of the top row (= GRID_NEAR_X = SHEET_GAP + 25)
+robot_gap          = 115; // base centre to the centre of the top row (= GRID_NEAR_X = SHEET_GAP + EDGE_TO_TOP_ROW)
 robot_centre_column = 3;  // pocket column (0-6) in line with the base: 3 = board column 4
 
 /* [Labels] */
@@ -82,23 +84,23 @@ opening_w = floor_w + 2 * flare;
 
 // Column centres across the board, left to right from the player's side:
 // 5 board columns, then Red, then Yellow.
-function column_x(c) = margin + pitch / 2 + c * pitch + (c >= columns ? staging_gap : 0);
-function row_y(r)    = board_len - margin - pitch / 2 - r * pitch;   // row 0 nearest the robot
+function column_x(c) = margin + column_pitch / 2 + c * column_pitch + (c >= columns ? staging_gap : 0);
+function row_y(r)    = board_len - margin - row_pitch / 2 - r * row_pitch;   // row 0 nearest the robot
 
-board_w   = 2 * margin + (columns + 2) * pitch + staging_gap;   // left -> right
-board_len = 2 * margin + rows * pitch;                           // player -> robot
+board_w   = 2 * margin + (columns + 2) * column_pitch + staging_gap;   // left -> right
+board_len = 2 * margin + rows * row_pitch;                       // player -> robot
 
 function grid_xy(i)          = [column_x(i % columns), row_y(floor(i / columns))];
 function staging_xy(side, i) = [column_x(columns + side), row_y(i)];  // side 0 = Red, 1 = Yellow
 
-assert(opening_w < pitch - 2, "Pockets overlap: raise pitch or lower flare");
+assert(opening_w < min(row_pitch, column_pitch) - 2, "Pockets overlap: raise the pitch or lower flare");
 assert(depth < thickness - 1 && staging_depth < thickness - 1, "Pocket too deep for the board thickness");
 
 // ---- Reach check ----
 function robot_dist(c, r) =
-    let(dx = (c - robot_centre_column) * pitch + (c >= columns ? staging_gap : 0)
+    let(dx = (c - robot_centre_column) * column_pitch + (c >= columns ? staging_gap : 0)
              - (robot_centre_column >= columns ? staging_gap : 0),
-        dy = robot_gap + r * pitch)
+        dy = robot_gap + r * row_pitch)
     sqrt(dx * dx + dy * dy);
 
 reach = max([for (c = [0:columns + 1], r = [0:rows - 1]) robot_dist(c, r)]);
@@ -106,7 +108,7 @@ reach = max([for (c = [0:columns + 1], r = [0:rows - 1]) robot_dist(c, r)]);
 echo(str("Board ", board_w, " x ", board_len, " mm. Floor ", floor_w,
          " mm, opening ", opening_w, " mm, capture range +/-", flare, " mm."));
 echo(str("Reach: farthest pocket ", round(reach), " mm from the robot base",
-         reach > 280 ? "  <-- probably too far: lower pitch or robot_gap" : ""));
+         reach > 280 ? "  <-- probably too far: lower row_pitch or robot_gap" : ""));
 echo(str("Stack of 3: ", 3 * block_h, " mm tall. HOVER_CLEARANCE in robot.py must clear it."));
 
 // ---- Pocket: flat floor, walls sloping outward to the opening ----
