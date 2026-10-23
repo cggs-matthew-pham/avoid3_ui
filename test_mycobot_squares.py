@@ -415,11 +415,139 @@ def test_pick_and_place():
 
 def show_reach():
     far, far_mm, near, near_mm, beyond = robot.reach_report()
-    print(f"Starting positions: nearest {near} at {near_mm:.0f} mm, "
-          f"farthest {far} at {far_mm:.0f} mm from the base.")
+    print(f"Sheet gap {robot.SHEET_GAP:g} mm: nearest spot {near} is {near_mm:.0f} mm "
+          f"from the base, farthest {far} is {far_mm:.0f} mm (arm's rated reach "
+          f"{robot.REACH_LIMIT} mm).")
     if beyond:
-        print(f"  Beyond REACH_LIMIT ({robot.REACH_LIMIT} mm): {', '.join(beyond)}")
-        print("  Move the board closer (GRID_NEAR_X), or use a smaller PITCH.")
+        print(f"  Probably out of reach: {', '.join(beyond)}. Move the sheet closer "
+              "(option 4).")
+
+
+# ---- Setting up the sheet ----
+
+SHEET_STEPS = """
+SETTING UP THE SHEET  (do this before calibrating)
+
+The arm remembers each spot as a set of joint angles. If the sheet moves
+after you calibrate, every move will miss by that much. So get the sheet
+in the right place first, then fix it down.
+
+1. Clear all blocks off the sheet.
+
+2. Lay the sheet LANDSCAPE (wide side towards the robot).
+   Standing where the player sits: the title AVOID THREE is at the far
+   side, next to the robot, and the RED and YELLOW columns are on your right.
+
+3. Line up the middle. The centre of the robot's base should be in line
+   with the 4th column of squares (the middle of the sheet).
+
+4. Set the distance. Measure from the centre of the part of the base that
+   turns (the middle of the round turntable, not the edge of the box) to
+   the edge of the paper.
+     - Aim for 40-60 mm.
+     - Closer helps the far corners (squares 21 and Y5).
+     - Too close and the arm can't bend down onto the nearest squares.
+"""
+
+
+def save_sheet_gap(gap):
+    """Write SHEET_GAP = gap into robot.py, so the game starts from it next time."""
+    path = robot.__file__
+    with open(path) as f:
+        text = f.read()
+    new_text, count = re.subn(r"^SHEET_GAP = [\d.]+", f"SHEET_GAP = {gap:g}", text,
+                              count=1, flags=re.MULTILINE)
+    if count != 1:
+        print(f"  Couldn't find SHEET_GAP in robot.py. Set it to {gap:g} by hand.")
+        return
+    with open(path, "w") as f:
+        f.write(new_text)
+    print(f"  Saved: SHEET_GAP = {gap:g} in robot.py.")
+
+
+def reach_test(name):
+    """Can the arm point straight down at this spot? Shows it from above.
+
+    Returns "ok", or a short reason it failed.
+    """
+    label, key = find_spot(name)
+    x, y, down_z = get_spot(key)
+    hover_z = down_z + HOVER_CLEARANCE
+    target_down = [x, y, down_z] + robot.TOOL_DOWN
+    target_hover = [x, y, hover_z] + robot.TOOL_DOWN
+    down_ok = robot.can_reach(target_down)
+    hover_ok = robot.can_reach(target_hover)
+    if not down_ok:
+        return "can't reach block height"
+    if not hover_ok:
+        return "can't reach hover height above it"
+    robot.move_to(x, y, hover_z)
+    print(f"  The arm is above {label}, about {HOVER_CLEARANCE} mm up.")
+    answer = ask("  Is the tool roughly over the middle of it? (y/n): ")
+    if answer != "y":
+        return "not over the spot"
+    return "ok"
+
+
+def setup_sheet():
+    print(SHEET_STEPS)
+    text = ask(f"Measured distance in mm (Enter to keep {robot.SHEET_GAP:g}): ")
+    if text:
+        try:
+            gap = float(text)
+            if not 0 <= gap <= 200:
+                raise ValueError
+        except ValueError:
+            print("Type a number of mm, e.g. 55.")
+            return
+        robot.set_sheet_gap(gap)
+    show_reach()
+
+    _, _, near, _, _ = robot.reach_report()
+    # The two far corners: bottom-left square and bottom of the Yellow column.
+    tests = [(near, "nearest"), ("21", "far corner"), ("y5", "far corner")]
+    print()
+    print("5. Test it. The arm will go above the nearest square and the two")
+    print("   far corners, without touching down. Keep hands clear.")
+    if ask("   Enter to start, or q to skip: ") == "q":
+        return
+
+    results = {}
+    try:
+        for name, kind in tests:
+            print(f"\n  {name.upper()} ({kind})")
+            results[name] = reach_test(name)
+            print(f"  -> {results[name]}")
+    except RuntimeError as error:
+        print(f"  {error}")
+        robot.home()
+        return
+    robot.home()
+
+    print()
+    near_ok = results.get(near) == "ok"
+    far_ok = results.get("21") == "ok" and results.get("y5") == "ok"
+    if near_ok and far_ok:
+        print("All reached. The sheet is in a good place.")
+        print("6. Fix it: tape the sheet down, and mark around the robot's base")
+        print("   (tape on the corners) so you can put it back in the same place.")
+        if text and ask(f"   Save {robot.SHEET_GAP:g} mm in robot.py for next time? (y/n): ") == "y":
+            save_sheet_gap(robot.SHEET_GAP)
+        print("Next: option 1 to calibrate each spot.")
+        return
+
+    if not far_ok and not near_ok:
+        print("Neither end worked. Check the sheet is landscape and centred,")
+        print("then measure again.")
+    elif not far_ok:
+        print("The far corners are out of reach: slide the sheet 10 mm closer")
+        print("to the robot, measure again, and rerun this.")
+    else:
+        print("The nearest square is too close: slide the sheet 10 mm away")
+        print("from the robot, measure again, and rerun this.")
+    if any(r == "not over the spot" for r in results.values()):
+        print("If the tool was well off a spot sideways, check the base is")
+        print("lined up with column 4. A few mm out is normal: calibration fixes that.")
 
 
 def main():
@@ -433,6 +561,8 @@ def main():
         "1": ("Go to a square or staging spot (hover/down)", test_go_to),
         "2": ("Grab and release", test_end_effector),
         "3": ("Pick and place (staging stack to square)", test_pick_and_place),
+        "4": ("Set up the sheet: where to put it, and a reach test (do this first)",
+              setup_sheet),
     }
 
     while True:

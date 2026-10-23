@@ -61,14 +61,19 @@ rows on a 40 mm grid, robot at the far (top) edge.
                 PLAYER
 ```
 
-**Check reach first.** At 40 mm spacing the farthest spot is about 286 mm
-from the base, with the top row 100 mm out. The arm probably can't point
-straight down that far (the tic-tac-toe board reached about 247 mm). Run
-`test_mycobot_squares.py`: it prints the nearest and farthest spots on
-startup. A 30-32 mm grid brings everything in to about 240 mm. To change
-it, set `PITCH` and `GRID_NEAR_X` in `robot.py` and `pitch` / `robot_gap`
-in `board.scad`, then print a matching paper template with
-`PART = "template"`.
+**Set up the sheet first:** `test_mycobot_squares.py`, option 4. It explains
+where to put the sheet, asks for your measurement, and moves the arm above
+the nearest square and the two far corners to check it can reach them.
+
+- Landscape, title edge against the robot, Red and Yellow on the player's right.
+- Centre of the robot's base in line with column 4 (the middle of the sheet).
+- Centre of the base's turntable 40-60 mm from the paper edge (`SHEET_GAP`
+  in `robot.py`; option 4 can save it for you).
+- Then tape the sheet down and mark around the base. Calibration saves joint
+  angles, so if the sheet moves afterwards every move misses by that much.
+
+At a 60 mm gap the far corners (square 21 and Y5) are about 273 mm from the
+base, inside the arm's rated 280 mm. Portrait would put them over 320 mm.
 
 ## End effector
 
@@ -95,7 +100,7 @@ The game moves **only** by replaying saved joint angles from
 - stacks `r1`-`r5`, `y1`-`y5`: `hover` + `down0`, `down1`, `down2` (one per
   block in the stack)
 
-In `test_mycobot_squares.py`, option 1:
+After option 4, in `test_mycobot_squares.py`, option 1:
 
 1. Type a spot (`13`, `r2`). The arm goes to hover above it.
 2. `d` goes down to a block on the table. Calibrate holding a block (on the

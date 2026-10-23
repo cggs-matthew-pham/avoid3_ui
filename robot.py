@@ -99,7 +99,15 @@ SAG_PER_MM = 0.0
 # which is the player's right). These positions are only starting points
 # for nudging; calibrated values replace them.
 PITCH = 40            # centre to centre, rows and columns (sheet: 20 mm squares, 40 mm apart)
-GRID_NEAR_X = 100     # mm from robot to the centre of the top row (1-5)
+
+# Where the sheet sits. Lay it landscape, long edge against the robot, with
+# the centre of the robot's base lined up with board column 4 (the middle of
+# the sheet). SHEET_GAP = distance from the centre of the base's rotation
+# to the paper edge. Measure it and set it here; option 4 in
+# test_mycobot_squares.py walks you through it.
+SHEET_GAP = 60        # mm, base rotation centre to the paper edge
+EDGE_TO_TOP_ROW = 25  # mm, paper edge to the centre of the top row (from the sheet)
+GRID_NEAR_X = SHEET_GAP + EDGE_TO_TOP_ROW   # mm from robot to the centre of the top row (1-5)
 SHEET_COLUMNS = 7     # 5 board columns, then Red, then Yellow
 CENTRE_COLUMN = 3     # sheet column (0-6) in line with the robot base: 3 = board column 4
 
@@ -120,6 +128,21 @@ STAGING = {
     for player, column in STAGING_COLUMN.items()
 }
 
+
+def set_sheet_gap(gap):
+    """Move the starting positions to suit a measured SHEET_GAP (this run only).
+
+    Spots already calibrated keep their saved positions.
+    """
+    global SHEET_GAP, GRID_NEAR_X
+    SHEET_GAP = gap
+    GRID_NEAR_X = gap + EDGE_TO_TOP_ROW
+    # Change the lists in place, so other files that imported them see it.
+    SQUARES[:] = [_xy(i // GRID_COLUMNS, i % GRID_COLUMNS) for i in range(len(SQUARES))]
+    for player, column in STAGING_COLUMN.items():
+        STAGING[player][:] = [_xy(i, column) for i in range(STAGING_COUNT)]
+    load_calibration()
+
 # Blocks stacked on each staging spot at the start of a game. 3 high x 5
 # stacks = 15 per player; only 13 Red / 12 Yellow can ever be played, so
 # the last stacks are spares. Each layer has its own saved position
@@ -137,9 +160,9 @@ TOOL_DOWN = [180, 0, 0]  # rx, ry, rz: tool pointing straight down
 
 PLAYER_LETTER = {1: "r", 2: "y"}
 
-# Roughly how far out the tool can still point straight down at table
-# height. Spots beyond this probably can't be calibrated. Measure yours.
-REACH_LIMIT = 250  # mm
+# The myCobot 280's rated reach. With the tool pointing straight down at
+# table height it is a little less, so spots near this need checking.
+REACH_LIMIT = 280  # mm
 
 
 # Names count from 1, like the screen and the printed sheet: squares

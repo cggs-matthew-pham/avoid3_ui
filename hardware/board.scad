@@ -27,11 +27,11 @@
 // calibrate "13" at the pocket labelled 13, "r1" at R1, and so on.
 //
 // robot.py uses the same layout for its starting positions. If you change
-// pitch, staging_gap or robot_gap here, change PITCH and GRID_NEAR_X in
+// pitch, staging_gap or robot_gap here, change PITCH and SHEET_GAP in
 // robot.py to match.
 //
 // REACH: the console line "Reach:" gives the distance from the robot base
-// to the farthest pocket. Keep it under about 250 mm (the arm has to point
+// to the farthest pocket. Keep it under about 280 mm (the rated reach) (the arm has to point
 // straight down there). At the sheet's 40 mm pitch it is well over; a
 // pitch of 30-32 mm brings it inside. Check the gripper fingers still fit
 // between neighbouring blocks before going smaller.
@@ -59,7 +59,7 @@ margin         = 8;     // border around everything
 thickness      = 7;     // board thickness (floor under pockets = thickness - depth)
 
 /* [Robot position, for the reach check only] */
-robot_gap          = 100; // base centre to the centre of the top row (= GRID_NEAR_X)
+robot_gap          = 85;  // base centre to the centre of the top row (= GRID_NEAR_X = SHEET_GAP + 25)
 robot_centre_column = 3;  // pocket column (0-6) in line with the base: 3 = board column 4
 
 /* [Labels] */
@@ -106,7 +106,7 @@ reach = max([for (c = [0:columns + 1], r = [0:rows - 1]) robot_dist(c, r)]);
 echo(str("Board ", board_w, " x ", board_len, " mm. Floor ", floor_w,
          " mm, opening ", opening_w, " mm, capture range +/-", flare, " mm."));
 echo(str("Reach: farthest pocket ", round(reach), " mm from the robot base",
-         reach > 250 ? "  <-- probably too far: lower pitch or robot_gap" : ""));
+         reach > 280 ? "  <-- probably too far: lower pitch or robot_gap" : ""));
 echo(str("Stack of 3: ", 3 * block_h, " mm tall. HOVER_CLEARANCE in robot.py must clear it."));
 
 // ---- Pocket: flat floor, walls sloping outward to the opening ----
