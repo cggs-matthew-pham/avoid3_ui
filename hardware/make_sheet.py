@@ -4,8 +4,8 @@
     python3 make_sheet.py        # writes avoid3_sheet_A4.pdf next to this file
 
 Page 1 is the board: 5 x 5 squares plus a Red and a Yellow column of 5
-stacking spots, with the robot at the top edge. Page 2 is cut-out labels
-for the tops of the blocks.
+stacking spots, with the robot at the top edge. Page 2 is 15 mm cut-out
+labels for the tops of the blocks.
 
 The layout is compressed towards the middle: rows close together, columns
 wider apart, because the gripper's fingers close left-right (across the
@@ -136,21 +136,26 @@ def board_page(c):
     text(c, bar_x + 25, footer - 2, "this bar should measure 50 mm", 6, colour=GREY, align="centre")
 
 
+LABEL = 15          # mm, label square: the size of a block's top face
+LABELS_EACH = 30    # per colour: 15 blocks + spares
+
+
 def labels_page(c):
-    text(c, 15, 12, "AVOID THREE  |  CUTOUT LABELS", 12, bold=True)
-    text(c, 15, 20, f"{SQUARE} x {SQUARE} mm squares  |  {CIRCLE} mm diameter circles  |  "
-         "28 red + 28 yellow", 8)
-    text(c, 15, 25, "Print at 100%. Stick one on top of each block (15 per colour, plus spares).", 8)
-    per_row, pitch = 7, 22
+    text(c, 15, 12, "AVOID THREE  |  BLOCK LABELS", 12, bold=True)
+    text(c, 15, 20, f"{LABEL} x {LABEL} mm squares  |  {LABELS_EACH} red + {LABELS_EACH} yellow", 8)
+    text(c, 15, 25, "Print at 100%. Cut out and stick one on top of each block "
+         "(15 per colour, plus spares).", 8)
+    per_row, pitch = 10, LABEL + 5   # 5 mm between labels for cutting
     start_x = PAGE_W / 2 - (per_row - 1) * pitch / 2
-    for i in range(56):
+    rows_each = LABELS_EACH // per_row
+    for i in range(2 * LABELS_EACH):
         row, column = divmod(i, per_row)
-        x, y = start_x + column * pitch, 40 + row * pitch
-        c.setStrokeColorRGB(*GREY)
-        c.setLineWidth(0.65)
-        c.rect((x - SQUARE / 2) * mm, (PAGE_H - y - SQUARE / 2) * mm, SQUARE * mm, SQUARE * mm)
-        c.setFillColorRGB(*(RED if i < 28 else YELLOW))
-        c.circle(x * mm, (PAGE_H - y) * mm, CIRCLE / 2 * mm, stroke=0, fill=1)
+        if row >= rows_each:
+            row += 1                     # a gap between the red and yellow blocks
+        x, y = start_x + column * pitch, 42 + row * pitch
+        c.setFillColorRGB(*(RED if i < LABELS_EACH else YELLOW))
+        c.rect((x - LABEL / 2) * mm, (PAGE_H - y - LABEL / 2) * mm, LABEL * mm, LABEL * mm,
+               stroke=0, fill=1)
 
 
 def main():
