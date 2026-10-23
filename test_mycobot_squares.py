@@ -651,25 +651,43 @@ in the right place first, then fix it down.
 """
 
 
-def reach_test(name):
-    """Can the arm point straight down at this spot? Shows it from above.
+def reach_out(name):
+    """Reach out towards a far spot as far as the arm can, and stop there.
 
-    Returns "ok", or a short reason it failed.
+    Steps outward along the line from the base to the spot, checking the
+    arm can point straight down at both block height and hover height,
+    until it can't. Returns (mm reached, mm the spot needs).
     """
+    x, y, down_z = robot.start_position(name)
+    needed = math.hypot(x, y)
+    hover_z = down_z + HOVER_CLEARANCE
+    ux, uy = x / needed, y / needed          # direction from the base to the spot
+    reached = None
+    distance = 150                           # comfortably inside reach
+    while distance <= 350:
+        px, py = ux * distance, uy * distance
+        if not (robot.can_reach([px, py, down_z] + robot.TOOL_DOWN)
+                and robot.can_reach([px, py, hover_z] + robot.TOOL_DOWN)):
+            break
+        reached = distance
+        distance += 10
+    if reached is not None:
+        robot.move_to(ux * reached, uy * reached, hover_z)  # show where the limit is
+    return reached, needed
+
+
+def near_check(name):
+    """Go above the nearest spot if that's safe. Returns "ok" or why not."""
     label, _ = find_spot(name)
     x, y, down_z = robot.start_position(name)
     if math.hypot(x, y) < robot.NEAR_LIMIT:
-        return "too close to the base"
+        return f"too close: {math.hypot(x, y):.0f} mm from the base"
     hover_z = down_z + HOVER_CLEARANCE
-    if not robot.can_reach([x, y, down_z] + robot.TOOL_DOWN):
-        return "can't reach block height"
-    if not robot.can_reach([x, y, hover_z] + robot.TOOL_DOWN):
-        return "can't reach hover height above it"
+    if not (robot.can_reach([x, y, down_z] + robot.TOOL_DOWN)
+            and robot.can_reach([x, y, hover_z] + robot.TOOL_DOWN)):
+        return "the arm can't point straight down there"
     robot.move_to(x, y, hover_z)
-    print(f"  The arm is above {label}, about {HOVER_CLEARANCE} mm up.")
-    answer = ask("  Is the tool roughly over the middle of it? (y/n): ")
-    if answer != "y":
-        return "not over the spot"
+    print(f"  The arm is above {label} (its starting guess), {HOVER_CLEARANCE} mm up.")
     return "ok"
 
 
@@ -700,21 +718,37 @@ def setup_sheet():
     print()
     show_reach()
     _, _, near, _, _, _ = robot.reach_report()
-    # The two far corners: bottom-left square and bottom of the Yellow column.
-    tests = [("21", "far corner"), ("y5", "far corner"), (near, "nearest")]
     print()
-    print("Test it. The arm will go above the two far corners and the nearest")
-    print("square, without touching down. Keep hands clear, and be ready to")
+    print("Test it. The arm reaches out towards each far corner (square 21 and")
+    print("Y5) as far as it can and stops there, then goes above the nearest")
+    print("square. It doesn't touch down. Keep hands clear, and be ready to")
     print("switch the arm off if the gripper gets close to the arm.")
     if ask("Enter to start, or q to skip: ") == "q":
         return
 
-    results = {}
+    far_ok = True
     try:
-        for name, kind in tests:
-            print(f"\n  {name.upper()} ({kind})")
-            results[name] = reach_test(name)
-            print(f"  -> {results[name]}")
+        for name in ("21", "y5"):
+            print(f"\n  Far corner {name.upper()}: reaching out...")
+            reached, needed = reach_out(name)
+            if reached is None:
+                print("  -> couldn't reach out at all in that direction.")
+                far_ok = False
+                continue
+            spare = reached - needed
+            if spare >= 0:
+                print(f"  -> reached {reached:.0f} mm; {name.upper()} needs {needed:.0f} mm. "
+                      f"OK, {spare:.0f} mm to spare.")
+            else:
+                print(f"  -> reached {reached:.0f} mm; {name.upper()} needs {needed:.0f} mm. "
+                      f"SHORT by {-spare:.0f} mm.")
+                far_ok = False
+            print("     The tool is now at that limit: look where it is compared with the corner.")
+            ask("     Enter to carry on: ")
+
+        print(f"\n  Nearest square {near}:")
+        near_result = near_check(near)
+        print(f"  -> {near_result}")
     except RuntimeError as error:
         print(f"  {error}")
         robot.home()
@@ -722,10 +756,11 @@ def setup_sheet():
     robot.home()
 
     print()
-    near_ok = results.get(near) == "ok"
-    far_ok = results.get("21") == "ok" and results.get("y5") == "ok"
+    near_ok = near_result == "ok"
     if near_ok and far_ok:
-        print("All reached. The sheet is in a good place.")
+        print("Both ends reachable. The sheet is in a good place.")
+        print("(At full stretch the arm can sag a few mm short of what it reports;")
+        print("calibration nudging takes care of that.)")
         print("Fix it: tape the sheet down, and mark around the robot's base")
         print("(tape on the corners) so you can put it back in the same place.")
         print("Next: option 1 to calibrate each spot.")
@@ -734,9 +769,9 @@ def setup_sheet():
     if not far_ok and not near_ok:
         print("Neither end worked. Paste this output to get help working out why.")
     elif not far_ok:
-        print("The far corners are out of reach. Either slide the sheet 10 mm closer")
-        print("(if the nearest square has room), or raise the robot 20-40 mm on a")
-        print("flat, solid block. Then rerun this, measuring again.")
+        print("The far corners are out of reach. Either slide the sheet closer by")
+        print("the shortfall (if the nearest square has room), or raise the robot")
+        print("20-40 mm on a flat, solid block. Then rerun this.")
     else:
         print("The nearest square is too close: slide the sheet 10 mm away from")
         print("the robot, then rerun this, measuring again.")
