@@ -75,13 +75,14 @@ GRIP_ANCHOR = {"suction": None, "gripper": None}
 ANCHOR_SPOT = "13"
 GRIP_Z_GUESS = {"suction": 175, "gripper": 200}
 DOWN_Z = GRIP_Z[END_EFFECTOR] or GRIP_Z_GUESS[END_EFFECTOR]
-BLOCK_HEIGHT = 15  # mm; each block up a stack sits this much higher
+BLOCK_HEIGHT = 12  # mm; each block up a stack sits this much higher
 
 # Hover = this far above a spot's down0 height (a block on the table).
 # Travel between spots happens at hover, so it must clear a full 3-high
-# staging stack (45 mm) with a block hanging below the gripper or cup
-# (15 mm), plus some margin.
-HOVER_CLEARANCE = 70  # mm
+# staging stack (3 x 12 = 36 mm) with a block hanging below the
+# gripper or cup (12 mm), plus some margin. Lower is quicker and
+# reaches further; don't go below 50.
+HOVER_CLEARANCE = 60  # mm
 
 # Safety: move_to refuses anything below this, so a wrong number can't
 # drive the tool into the board. Low enough to leave room for nudging

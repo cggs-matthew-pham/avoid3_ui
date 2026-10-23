@@ -136,8 +136,9 @@ After option 4, in `test_mycobot_squares.py`, option 1. The quick loop is
 6. `check` / `check2` / `check3` replay the saved angles exactly as the game
    does, and log any drift to `check_log.csv`.
 
-`HOVER_CLEARANCE` is 70 mm because travel happens at hover height and must
-clear a full 3-high stack (45 mm) with a block hanging below the tool.
+`HOVER_CLEARANCE` is 60 mm because travel happens at hover height and must
+clear a full 3-high stack (3 x 12 = 36 mm) with a 12 mm block hanging
+below the tool, plus a margin.
 
 ### Lessons from tic-tac-toe (don't relearn these)
 

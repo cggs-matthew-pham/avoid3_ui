@@ -42,7 +42,7 @@ PART = "both";          // "board", "blocks", "both" (preview only) or "template
 
 /* [Block] */
 block      = 15;        // block width (mm). Measure real blocks if not printing them.
-block_h    = 15;        // block height
+block_h    = 12;        // block height
 block_cham = 1.5;       // chamfer on the block's bottom edges, so it slides in
 blocks_per_player = 15; // 5 stacks of 3
 
