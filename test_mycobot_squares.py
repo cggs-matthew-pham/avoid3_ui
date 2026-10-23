@@ -178,6 +178,8 @@ def test_go_to():
 
     def go_to(found):
         """Lift if needed, then travel at hover to a spot. Returns the new state."""
+        if not heights_known():
+            raise RuntimeError(HEIGHT_WARNING)
         if level in LAYER_COMMANDS:  # always lift before moving sideways
             robot.move_to(x, y, lift_height(key, z), mode=1)
         label, new_key = found
@@ -288,7 +290,7 @@ def test_go_to():
                 print(f"  Taught: x={tx:g}  y={ty:g}  z={tz:g}")
                 if tz < robot.MIN_Z:
                     print(f"  z is below MIN_Z ({robot.MIN_Z}); using {robot.MIN_Z}. "
-                          "Lower DOWN_Z in robot.py if the table really is that low.")
+                          "Run option 5 to measure the grip height.")
                     tz = robot.MIN_Z
                 # A limp arm sags and tilts, so drive there properly under power
                 # (tool straight down) and check before saving.
@@ -467,6 +469,9 @@ def test_end_effector():
 
 
 def test_pick_and_place():
+    if not heights_known():
+        print(HEIGHT_WARNING)
+        return
     names = {"r": 1, "y": 2}
 
     player = names.get(ask("Pick a Red or a Yellow block? (r/y): "))
@@ -508,6 +513,84 @@ def show_reach():
     if beyond:
         print(f"  Probably out of reach: {', '.join(beyond)}. Move the sheet closer "
               "(option 4).")
+
+
+# ---- Grip height ----
+
+def heights_known():
+    """True once the grip height is measured or any spot is calibrated."""
+    if robot.grip_z_measured():
+        return True
+    return any(pose == "down0" for _, pose in robot.calibration)
+
+
+HEIGHT_WARNING = ("Grip height not measured yet, so every height is a guess and the\n"
+                  "arm may go far too high (near the base it can hit itself).\n"
+                  "Run option 4 first: it measures it.")
+
+
+def save_grip_z(z):
+    """Write the measured grip height into robot.py (GRIP_Z)."""
+    path = robot.__file__
+    with open(path) as f:
+        text = f.read()
+    values = dict(robot.GRIP_Z)
+    line = "GRIP_Z = {" + ", ".join(f'"{k}": {v!r}' for k, v in values.items()) + "}"
+    new_text, count = re.subn(r"^GRIP_Z = \{[^}]*\}", line, text, count=1, flags=re.MULTILINE)
+    if count != 1:
+        print(f"  Couldn't find GRIP_Z in robot.py. Set {robot.END_EFFECTOR} to {z:g} by hand.")
+        return
+    with open(path, "w") as f:
+        f.write(new_text)
+    print(f"  Saved: grip height {z:g} for the {robot.END_EFFECTOR} in robot.py.")
+
+
+def measure_grip_height():
+    """Hold the tool on a block by hand; read and save the height. True if done."""
+    print(f"""
+MEASURE THE GRIP HEIGHT  ({robot.END_EFFECTOR})
+
+Every height the arm uses before calibration comes from this, including
+hover. Measured by hand, so the arm makes no big moves.
+
+1. Put one block on square 13 (the middle of the board).
+2. The arm will go limp. Hold it.
+3. Bring the tool down onto the block, pointing straight down:""")
+    if robot.END_EFFECTOR == "gripper":
+        print("   gripper open, fingers either side of the block, at the height you'd grip it.")
+    else:
+        print("   cup resting flat on top of the block.")
+    if ask("Enter to start, or q to cancel: ") == "q":
+        return False
+
+    robot.get_ready_to_grab()  # open the gripper first
+    print("  Servos releasing - HOLD THE ARM, it will drop.")
+    ask("  Enter to release: ")
+    robot.mc.release_all_servos()
+    ask("  Hold the tool on the block, straight down. Enter when it's there: ")
+    robot.mc.power_on()
+    time.sleep(1)
+    coords = robot.read_coords()
+    if coords is None:
+        print("  Couldn't read the arm's position. Try again.")
+        robot.last_target = None
+        return False
+
+    z = round(coords[2], 1)
+    print(f"  Grip height: z = {z:g} (it was guessing {robot.DOWN_Z:g}).")
+    robot.set_down_z(z)
+    save_grip_z(z)
+
+    # Up a little, straight, so it clears the block, then home.
+    print("  Lifting and going home. Hands clear.")
+    robot.last_target = None
+    try:
+        robot.move_to(coords[0], coords[1], z + 30, mode=1)
+    except RuntimeError as error:
+        print(f"  ({error}; going home directly)")
+    robot.home()
+    print(f"  Hover will now be {z + HOVER_CLEARANCE:g} ({HOVER_CLEARANCE} mm above this).")
+    return True
 
 
 # ---- Setting up the sheet ----
@@ -577,6 +660,10 @@ def reach_test(name):
 
 
 def setup_sheet():
+    if not robot.grip_z_measured():
+        if not measure_grip_height():
+            print("Grip height needed before the reach test. Run option 4 again when ready.")
+            return
     print(SHEET_STEPS)
     text = ask(f"Measured distance in mm (Enter to keep {robot.SHEET_GAP:g}): ")
     if text:
@@ -592,10 +679,11 @@ def setup_sheet():
 
     _, _, near, _, _ = robot.reach_report()
     # The two far corners: bottom-left square and bottom of the Yellow column.
-    tests = [(near, "nearest"), ("21", "far corner"), ("y5", "far corner")]
+    tests = [("21", "far corner"), ("y5", "far corner"), (near, "nearest")]
     print()
-    print("5. Test it. The arm will go above the nearest square and the two")
-    print("   far corners, without touching down. Keep hands clear.")
+    print("5. Test it. The arm will go above the two far corners and the")
+    print("   nearest square, without touching down. Keep hands clear, and be")
+    print("   ready to switch the arm off if the gripper gets close to the arm.")
     if ask("   Enter to start, or q to skip: ") == "q":
         return
 
@@ -640,6 +728,10 @@ def setup_sheet():
 def main():
     print(f"End effector: {robot.END_EFFECTOR}")
     show_reach()
+    if not heights_known():
+        print()
+        print(HEIGHT_WARNING)
+        print()
     print("Moving to safe start position...")
     robot.home()
     robot.release()  # gripper open / pump off
@@ -648,8 +740,10 @@ def main():
         "1": ("Go to a square or staging spot (hover/down)", test_go_to),
         "2": ("Grab and release", test_end_effector),
         "3": ("Pick and place (staging stack to square)", test_pick_and_place),
-        "4": ("Set up the sheet: where to put it, and a reach test (do this first)",
+        "4": ("Set up: measure grip height, place the sheet, reach test (do this first)",
               setup_sheet),
+        "5": ("Measure grip height again (after changing the gripper or cup)",
+              measure_grip_height),
     }
 
     while True:

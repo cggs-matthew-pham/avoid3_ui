@@ -58,10 +58,15 @@ PUMP_ENABLED = False
 
 START_ANGLES = [25, 20, -120, 10, 0, -65]
 
-# Starting guess for the flange height when holding a block on the table:
-# the cup touching its top, or the gripper fingers around it. Set it near
-# your real value (teach mode tells you) so uncalibrated spots start close.
-DOWN_Z = {"suction": 175, "gripper": 200}[END_EFFECTOR]
+# Grip height: where the arm is (flange z) when holding a block that sits
+# on the table: the cup touching its top, or the gripper around it.
+# Every height before calibration is worked out from this, hover included,
+# so a wrong value sends the arm too high (it can hit itself near the base)
+# or too low. Measure it: option 4 in test_mycobot_squares.py asks you to
+# hold the gripper on a block by hand, then writes it here.
+GRIP_Z = {"suction": None, "gripper": None}   # None = not measured yet
+GRIP_Z_GUESS = {"suction": 175, "gripper": 200}
+DOWN_Z = GRIP_Z[END_EFFECTOR] or GRIP_Z_GUESS[END_EFFECTOR]
 BLOCK_HEIGHT = 15  # mm; each block up a stack sits this much higher
 
 # Hover = this far above a spot's down0 height (a block on the table).
@@ -127,6 +132,25 @@ STAGING = {
     player: [_xy(i, column) for i in range(STAGING_COUNT)]
     for player, column in STAGING_COLUMN.items()
 }
+
+
+def grip_z_measured():
+    return GRIP_Z[END_EFFECTOR] is not None
+
+
+def set_down_z(z):
+    """Use a measured grip height (this run only; the test script saves it).
+
+    Spots already calibrated keep their saved heights.
+    """
+    global DOWN_Z, MIN_Z
+    GRIP_Z[END_EFFECTOR] = z
+    DOWN_Z = z
+    MIN_Z = z - 30
+    SQUARE_Z[:] = [z] * len(SQUARE_Z)
+    for heights in STAGING_Z.values():
+        heights[:] = [z] * len(heights)
+    load_calibration()
 
 
 def set_sheet_gap(gap):

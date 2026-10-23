@@ -61,9 +61,17 @@ rows on a 40 mm grid, robot at the far (top) edge.
                 PLAYER
 ```
 
-**Set up the sheet first:** `test_mycobot_squares.py`, option 4. It explains
-where to put the sheet, asks for your measurement, and moves the arm above
-the nearest square and the two far corners to check it can reach them.
+**Set up first:** `test_mycobot_squares.py`, option 4. It:
+
+1. Measures the grip height: you hold the open gripper (or cup) on a block
+   by hand and it reads the height. Every height before calibration comes
+   from this, hover included. Until it's measured the tool won't travel to
+   spots, because a guessed height can send the arm too high and make it
+   hit itself near the base. Saved to `GRIP_Z` in `robot.py`; option 5
+   measures again after changing the tool.
+2. Explains where to put the sheet and asks for your measurement.
+3. Moves the arm above the two far corners and the nearest square to check
+   it can reach them.
 
 - Landscape, title edge against the robot, Red and Yellow on the player's right.
 - Centre of the robot's base in line with column 4 (the middle of the sheet).
