@@ -652,11 +652,15 @@ in the right place first, then fix it down.
 
 
 def reach_out(name):
-    """Reach out towards a far spot as far as the arm can, and stop there.
+    """Move out towards a far spot, for real, until the arm can't go further.
 
-    Steps outward along the line from the base to the spot, checking the
-    arm can point straight down at both block height and hover height,
-    until it can't. Returns (mm reached, mm the spot needs).
+    Steps outward at hover height along the line from the base to the spot,
+    checking after each move that the arm really got there (it silently
+    ignores moves it can't do). At the furthest point it then comes straight
+    down to block height to check that too.
+
+    Returns (mm reached at hover, mm the spot needs, whether block height
+    worked there).
     """
     x, y, down_z = robot.start_position(name)
     needed = math.hypot(x, y)
@@ -664,16 +668,28 @@ def reach_out(name):
     ux, uy = x / needed, y / needed          # direction from the base to the spot
     reached = None
     distance = 150                           # comfortably inside reach
-    while distance <= 350:
-        px, py = ux * distance, uy * distance
-        if not (robot.can_reach([px, py, down_z] + robot.TOOL_DOWN)
-                and robot.can_reach([px, py, hover_z] + robot.TOOL_DOWN)):
+    while distance <= needed + 20:           # a little past the spot shows the spare
+        try:
+            robot.move_to(ux * distance, uy * distance, hover_z)
+        except RuntimeError as error:
+            print(f"     stopped at {distance:.0f} mm: {error}")
             break
         reached = distance
-        distance += 10
-    if reached is not None:
-        robot.move_to(ux * reached, uy * reached, hover_z)  # show where the limit is
-    return reached, needed
+        print(f"     {distance:.0f} mm ok")
+        distance += 20 if distance + 20 <= needed else 10
+
+    if reached is None:
+        return None, needed, False
+    px, py = ux * reached, uy * reached
+    try:
+        robot.move_to(px, py, down_z, mode=1)   # straight down, no blocks on the sheet
+        down_ok = True
+        robot.move_to(px, py, hover_z, mode=1)
+    except RuntimeError as error:
+        print(f"     couldn't come down to block height there: {error}")
+        down_ok = False
+        robot.last_target = None
+    return reached, needed, down_ok
 
 
 def near_check(name):
@@ -719,10 +735,11 @@ def setup_sheet():
     show_reach()
     _, _, near, _, _, _ = robot.reach_report()
     print()
-    print("Test it. The arm reaches out towards each far corner (square 21 and")
-    print("Y5) as far as it can and stops there, then goes above the nearest")
-    print("square. It doesn't touch down. Keep hands clear, and be ready to")
-    print("switch the arm off if the gripper gets close to the arm.")
+    print("Test it. Clear all blocks off the sheet. The arm moves out towards each")
+    print("far corner (square 21 and Y5) in steps until it can't go further, and")
+    print("comes down to block height there; then it goes above the nearest")
+    print("square. Keep hands clear, and be ready to switch the arm off if the")
+    print("gripper gets close to the arm.")
     if ask("Enter to start, or q to skip: ") == "q":
         return
 
@@ -730,17 +747,21 @@ def setup_sheet():
     try:
         for name in ("21", "y5"):
             print(f"\n  Far corner {name.upper()}: reaching out...")
-            reached, needed = reach_out(name)
+            reached, needed, down_ok = reach_out(name)
             if reached is None:
-                print("  -> couldn't reach out at all in that direction.")
+                print("  -> couldn't move out at all in that direction (see above).")
                 far_ok = False
                 continue
             spare = reached - needed
-            if spare >= 0:
-                print(f"  -> reached {reached:.0f} mm; {name.upper()} needs {needed:.0f} mm. "
-                      f"OK, {spare:.0f} mm to spare.")
+            if spare >= 0 and down_ok:
+                print(f"  -> got to {reached:.0f} mm and down to block height; "
+                      f"{name.upper()} needs {needed:.0f} mm. OK.")
+            elif spare >= 0:
+                print(f"  -> got to {reached:.0f} mm at hover height but NOT down to block "
+                      f"height; {name.upper()} needs {needed:.0f} mm.")
+                far_ok = False
             else:
-                print(f"  -> reached {reached:.0f} mm; {name.upper()} needs {needed:.0f} mm. "
+                print(f"  -> only got to {reached:.0f} mm; {name.upper()} needs {needed:.0f} mm. "
                       f"SHORT by {-spare:.0f} mm.")
                 far_ok = False
             print("     The tool is now at that limit: look where it is compared with the corner.")

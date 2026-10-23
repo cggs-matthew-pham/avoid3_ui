@@ -613,13 +613,57 @@ def move_to(x, y, z, mode=0):
 
     mc.send_coords(target, SPEED, mode)
     wait_until_stopped()
+    _check_arrived_coords(target)
     last_target = target
+
+
+# ---- Did it actually get there? ----
+# The arm silently ignores a move it can't do: no error, it just stays put.
+# So after every move, ask where it is and complain if that isn't where it
+# was sent.
+
+ARRIVE_MM = 15        # coordinate moves: allowed gap between sent and reported
+ARRIVE_DEGREES = 5    # angle moves: allowed gap on any joint
+
+
+def _check_arrived_coords(target):
+    for attempt in range(4):
+        coords = read_coords()
+        if coords is None:
+            print("Warning: couldn't read the arm's position to check the move.")
+            return
+        miss = math.dist(coords[:3], target[:3])
+        if miss <= ARRIVE_MM:
+            return
+        time.sleep(0.5)  # it may have started late: give it a moment
+        wait_until_stopped()
+    raise RuntimeError(
+        f"The arm didn't get there: sent x={target[0]:.0f} y={target[1]:.0f} "
+        f"z={target[2]:.0f}, it's at x={coords[0]:.0f} y={coords[1]:.0f} z={coords[2]:.0f} "
+        f"({miss:.0f} mm away). Probably out of its reach in that pose.")
+
+
+def _check_arrived_angles(angles):
+    for attempt in range(4):
+        now = read_angles(fallback=False)
+        if now is None:
+            print("Warning: couldn't read the arm's joint angles to check the move.")
+            return
+        miss = max(abs(a - b) for a, b in zip(now, angles))
+        if miss <= ARRIVE_DEGREES:
+            return
+        time.sleep(0.5)
+        wait_until_stopped()
+    raise RuntimeError(
+        f"The arm didn't get there: a joint is {miss:.0f} degrees from where it was sent. "
+        "Check nothing is blocking it, and that the angles are within the joint limits.")
 
 
 def home():
     global last_target, last_angles
     mc.send_angles(START_ANGLES, SPEED)
     wait_until_stopped()
+    _check_arrived_angles(START_ANGLES)
     last_target = None
     last_angles = list(START_ANGLES)  # a known-good reading to start from
 
@@ -630,6 +674,7 @@ def move_angles(angles):
     mc.send_angles(angles, SPEED)
     wait_until_stopped()
     last_target = None  # next move_to must not assume where we are
+    _check_arrived_angles(angles)
     last_angles = list(angles)
 
 
