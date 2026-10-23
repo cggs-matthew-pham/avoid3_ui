@@ -74,7 +74,8 @@ rows on a 40 mm grid, robot at the far (top) edge.
    it can reach them.
 
 - Landscape, title edge against the robot, Red and Yellow on the player's right.
-- Centre of the robot's base in line with column 4 (the middle of the sheet).
+- Centre of the robot's turntable in line with squares 4, 9, 14, 19, 24: the
+  middle of the whole sheet (counting Red and Yellow), not of the 5 x 5.
 - Centre of the base's turntable 40-60 mm from the paper edge (`SHEET_GAP`
   in `robot.py`; option 4 can save it for you).
 - Then tape the sheet down and mark around the base. Calibration saves joint

@@ -608,8 +608,10 @@ in the right place first, then fix it down.
    Standing where the player sits: the title AVOID THREE is at the far
    side, next to the robot, and the RED and YELLOW columns are on your right.
 
-3. Line up the middle. The centre of the robot's base should be in line
-   with the 4th column of squares (the middle of the sheet).
+3. Line up the middle. The centre of the robot's turntable should be in
+   line with the column of squares 4, 9, 14, 19, 24. That's the middle of
+   the WHOLE sheet, counting the Red and Yellow columns, not the middle of
+   the 5 x 5. From the robot's side the columns run Y, R, 5, 4, 3, 2, 1.
 
 4. Set the distance. Measure from the centre of the part of the base that
    turns (the middle of the round turntable, not the edge of the box) to
