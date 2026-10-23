@@ -65,7 +65,9 @@ rows, robot at the top edge:
                 PLAYER
 ```
 
-Rows are 25 mm apart and columns 40 mm apart. The gripper closes
+Rows are 25 mm apart and columns 40 mm apart, with an extra 5 mm before
+the Red column and again before Yellow (`STAGING_EXTRA`), so the gripper can
+open wider when picking from a stack. The gripper closes
 left-right (across the columns), so the fingers never reach forwards or
 back and the rows can be close. That keeps the far corners about 246 mm from
 the base (inside the 280 mm rated reach) and the nearest row about 115 mm out
@@ -99,12 +101,16 @@ The sheet is designed for a 60 mm gap: the far corners are then about
 
 `END_EFFECTOR` in `robot.py`: `"gripper"` (default) or `"suction"`.
 
-- **Gripper**: it should only ever open enough to go around a block, never
-  fully, or the fingers hit the blocks next door. Set `GRIPPER_OPEN` /
-  `GRIPPER_CLOSED` (`set_gripper_value` numbers, 0-100) with option 6 in
+- **Gripper**: it should never open fully, or the fingers hit the blocks
+  next door. Three `set_gripper_value` numbers (0-100): `GRIPPER_PICK_OPEN`
+  (a bit wider, before going down onto a stack, so a slightly-off approach
+  still gets around the block), `GRIPPER_OPEN` (just enough to let go on the
+  board) and `GRIPPER_CLOSED`. Set them with option 6 in
   `test_mycobot_squares.py`: it shows which end is open, lets you try values
   with a block in the fingers, and saves them. Do this before option 4.
-  Coloured labels on top are fine.
+  Blocks are taken from the tallest stack first (all the tops, then the
+  middles, then the bottoms), so the gripper body never has a stack more
+  than one block higher beside it. Coloured labels on top are fine.
 - **Suction**: the pump is on GPIO 20 and the valve on GPIO 21, set up
   HIGH (LOW = on). `PUMP_ENABLED = False` by default; tick "Suction pump on"
   in the window, or use `pump` in the calibration tool. Keep block tops

@@ -12,7 +12,7 @@ wider apart, because the gripper's fingers close left-right (across the
 columns) and never reach forwards or back. That keeps the far corners
 inside the arm's reach and the near row away from the base.
 
-If you change ROW_PITCH, COLUMN_PITCH or EDGE_TO_TOP_ROW here, change the
+If you change ROW_PITCH, COLUMN_PITCH, STAGING_EXTRA or EDGE_TO_TOP_ROW here, change the
 same numbers in robot.py (and hardware/board.scad if 3D printing).
 """
 
@@ -34,6 +34,7 @@ ROWS = 5
 COLUMNS = 5
 STAGING = {"RED": 5, "YELLOW": 6}   # sheet column (0-6) of each staging column
 CENTRE_COLUMN = 3                   # in line with the robot: squares 4, 9, 14, 19, 24
+STAGING_EXTRA = 5                   # mm extra before Red and again before Yellow
 
 # ---- Style (from avoid_three_final_A4_landscape.pdf) ----
 GREY = (0.4, 0.439, 0.522)
@@ -50,7 +51,8 @@ OUTPUT = os.path.join(HERE, "avoid3_sheet_A4.pdf")
 
 def column_x(sheet_column):
     """Centre of a column, mm from the page's left edge."""
-    return PAGE_W / 2 + (sheet_column - CENTRE_COLUMN) * COLUMN_PITCH
+    extra = STAGING_EXTRA * sum(1 for c in STAGING.values() if sheet_column >= c)
+    return PAGE_W / 2 + (sheet_column - CENTRE_COLUMN) * COLUMN_PITCH + extra
 
 
 def row_y(row):
@@ -124,7 +126,8 @@ def board_page(c):
     footer = PAGE_H - 8
     text(c, 15, footer,
          f"{SQUARE} x {SQUARE} mm squares  |  {CIRCLE} mm circles  |  rows {ROW_PITCH} mm, "
-         f"columns {COLUMN_PITCH} mm apart  |  Print at 100% (not 'fit to page')",
+         f"columns {COLUMN_PITCH} mm apart (+{STAGING_EXTRA} mm before Red and Yellow)  |  "
+         "Print at 100% (not 'fit to page')",
          6.5, colour=GREY)
     bar_x = PAGE_W - 15 - 50
     c.setStrokeColorRGB(*INK)
@@ -167,7 +170,7 @@ def main():
     c.showPage()
     c.save()
     print(f"Wrote {OUTPUT}")
-    far = ((SHEET_GAP + row_y(ROWS - 1)) ** 2 + ((CENTRE_COLUMN) * COLUMN_PITCH) ** 2) ** 0.5
+    far = ((SHEET_GAP + row_y(ROWS - 1)) ** 2 + (column_x(6) - column_x(CENTRE_COLUMN)) ** 2) ** 0.5
     near = SHEET_GAP + row_y(0)
     print(f"From the turntable centre: nearest square {near:.0f} mm, far corners {far:.0f} mm.")
 

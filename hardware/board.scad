@@ -56,7 +56,7 @@ staging_depth = 4;      // staging pockets: a little deeper to steady a 3-high s
 /* [Layout] */
 row_pitch      = 25;    // centre-to-centre, towards / away from the robot. Sheet: 25.
 column_pitch   = 40;    // centre-to-centre, left / right. Sheet: 40. Room for the open fingers.
-staging_gap    = 0;     // extra space between the board and the staging columns. Sheet: 0.
+staging_gap    = 5;     // extra room before Red and again before Yellow (= STAGING_EXTRA)
 margin         = 8;     // border around everything
 thickness      = 7;     // board thickness (floor under pockets = thickness - depth)
 
@@ -84,10 +84,11 @@ opening_w = floor_w + 2 * flare;
 
 // Column centres across the board, left to right from the player's side:
 // 5 board columns, then Red, then Yellow.
-function column_x(c) = margin + column_pitch / 2 + c * column_pitch + (c >= columns ? staging_gap : 0);
+function column_x(c) = margin + column_pitch / 2 + c * column_pitch
+                       + (c >= columns ? staging_gap : 0) + (c >= columns + 1 ? staging_gap : 0);
 function row_y(r)    = board_len - margin - row_pitch / 2 - r * row_pitch;   // row 0 nearest the robot
 
-board_w   = 2 * margin + (columns + 2) * column_pitch + staging_gap;   // left -> right
+board_w   = 2 * margin + (columns + 2) * column_pitch + 2 * staging_gap;   // left -> right
 board_len = 2 * margin + rows * row_pitch;                       // player -> robot
 
 function grid_xy(i)          = [column_x(i % columns), row_y(floor(i / columns))];
@@ -99,6 +100,7 @@ assert(depth < thickness - 1 && staging_depth < thickness - 1, "Pocket too deep 
 // ---- Reach check ----
 function robot_dist(c, r) =
     let(dx = (c - robot_centre_column) * column_pitch + (c >= columns ? staging_gap : 0)
+             + (c >= columns + 1 ? staging_gap : 0)
              - (robot_centre_column >= columns ? staging_gap : 0),
         dy = robot_gap + r * row_pitch)
     sqrt(dx * dx + dy * dy);

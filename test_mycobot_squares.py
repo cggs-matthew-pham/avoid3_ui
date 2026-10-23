@@ -114,12 +114,14 @@ def tool_command(command):
         print(f"  Pump {'ENABLED: grab will switch it on' if on else 'disabled: moves only, no suction'}.")
         return True
 
-    if command in ("open", "close") or command.startswith("g "):
+    if command in ("open", "open wide", "close") or command.startswith("g "):
         if robot.END_EFFECTOR != "gripper":
             print("  No gripper fitted (END_EFFECTOR is suction).")
             return True
         if command == "open":
             value = robot.GRIPPER_OPEN
+        elif command == "open wide":
+            value = robot.GRIPPER_PICK_OPEN
         elif command == "close":
             value = robot.GRIPPER_CLOSED
         else:
@@ -131,8 +133,8 @@ def tool_command(command):
                 print("  g takes a number 0-100, e.g. g 40.")
                 return True
         robot.set_gripper(value)
-        print(f"  Gripper set to {value}. (GRIPPER_OPEN={robot.GRIPPER_OPEN}, "
-              f"GRIPPER_CLOSED={robot.GRIPPER_CLOSED} in robot.py)")
+        print(f"  Gripper set to {value}. (release {robot.GRIPPER_OPEN}, "
+              f"pick {robot.GRIPPER_PICK_OPEN}, closed {robot.GRIPPER_CLOSED} in robot.py)")
         return True
 
     return False
@@ -157,7 +159,7 @@ def test_go_to():
     print("  x+ x- y+ y- z+ z- = nudge 1 mm; add mm for more, up to 10 (x+4, z-0.5)")
     print("  teach = go limp, you hold the tool on the spot, Enter to read it")
     if robot.END_EFFECTOR == "gripper":
-        print("  open / close / g 40 = gripper (0-100)")
+        print("  open / open wide / close / g 40 = gripper (release / pick / hold / any 0-100)")
     else:
         print("  pump / pump on / pump off = allow the suction pump (off by default)")
     print("  w = show where the arm is, save = keep this spot, q = back to menu")
@@ -652,9 +654,11 @@ def setup_gripper():
 GRIPPER: HOW FAR IT OPENS AND CLOSES
 
 The gripper takes a number from 0 to 100. It should never open fully: the
-fingers would hit the blocks either side. Open = just wide enough to go
-around a block with 2-3 mm spare each side. Closed = holding a block
-firmly, without the servo straining (buzzing or getting warm).
+fingers would hit the blocks either side. Three settings:
+  release   opens just enough to let go of a block on the board
+  pick      opens a bit wider before going down onto a stack, so a
+            slightly-off approach still gets around the block
+  closed    holds a block firmly, without the servo straining
 """)
     robot.set_gripper(0)
     end = ask("At 0, is the gripper open or closed? (o/c): ")
@@ -665,17 +669,23 @@ firmly, without the servo straining (buzzing or getting warm).
     wider = "lower" if end == "o" else "higher"
     print(f"So {wider} numbers open it wider.\n")
 
-    print("1. OPEN. Hold a block between the fingers (don't let them grip it).")
-    print("   Find the smallest opening that clears it with 2-3 mm each side.")
-    opened = try_values("Open value", robot.GRIPPER_OPEN)
+    print("1. RELEASE. Hold a block between the fingers (don't let them grip it).")
+    print("   Find the smallest opening that clears it with about 2 mm each side.")
+    opened = try_values("Release value", robot.GRIPPER_OPEN)
 
-    print("\n2. CLOSED. Keep the block between the fingers.")
+    print("\n2. PICK. Open a bit wider: about 5 mm each side of the block. Check")
+    print("   the open fingers are still well under 50 mm across (the stacks are")
+    print("   45 mm apart).")
+    pick = try_values("Pick value", robot.GRIPPER_PICK_OPEN)
+
+    print("\n3. CLOSED. Keep the block between the fingers.")
     print("   Find the value that holds it firmly without straining.")
     closed = try_values("Closed value", robot.GRIPPER_CLOSED)
 
-    robot.GRIPPER_OPEN, robot.GRIPPER_CLOSED = opened, closed
-    if save_setting("GRIPPER_OPEN", opened) and save_setting("GRIPPER_CLOSED", closed):
-        print(f"  Saved: GRIPPER_OPEN = {opened}, GRIPPER_CLOSED = {closed} in robot.py.")
+    robot.GRIPPER_OPEN, robot.GRIPPER_PICK_OPEN, robot.GRIPPER_CLOSED = opened, pick, closed
+    if (save_setting("GRIPPER_OPEN", opened) and save_setting("GRIPPER_PICK_OPEN", pick)
+            and save_setting("GRIPPER_CLOSED", closed)):
+        print(f"  Saved: release {opened}, pick {pick}, closed {closed} in robot.py.")
     robot.set_gripper(opened)
     print("  Take the block out. Done.")
 

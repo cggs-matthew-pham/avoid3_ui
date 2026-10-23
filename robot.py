@@ -41,11 +41,16 @@ SPEED = 40
 END_EFFECTOR = "gripper"  # "gripper" or "suction"
 
 # ---- Gripper ----
-# set_gripper_value takes 0-100. Check which end is open on your gripper
-# with 'g 0' / 'g 100' in test_mycobot_squares.py before trusting these.
-# GRIPPER_OPEN: only as wide as needed to clear a block, so the fingers
-# don't knock the pieces next to it. GRIPPER_CLOSED: tight enough to hold
-# a 15 mm block without straining the servo.
+# set_gripper_value takes 0-100. Set these with option 6 in
+# test_mycobot_squares.py (it shows which end is open). Never fully open:
+# the fingers would hit the blocks next door.
+# GRIPPER_PICK_OPEN: before going down onto a stack. A bit wider, so a
+# slightly-off approach still gets around the block; the stacks have extra
+# room either side (STAGING_EXTRA).
+# GRIPPER_OPEN: to let go of a block on the board. Just enough to release,
+# so the fingers miss the pieces either side.
+# GRIPPER_CLOSED: holds a block firmly without straining the servo.
+GRIPPER_PICK_OPEN = 70
 GRIPPER_OPEN = 60
 GRIPPER_CLOSED = 20
 GRIPPER_SPEED = 50
@@ -135,8 +140,20 @@ STAGING_COUNT = 5     # stacks per player
 STAGING_COLUMN = {1: 5, 2: 6}   # sheet column for Red (1) and Yellow (2)
 
 
+# Extra room before the Red column and again before the Yellow column, so
+# the gripper can open wider when picking from a stack.
+STAGING_EXTRA = 5     # mm
+
+
+def column_offset(sheet_column):
+    """Left/right distance of a sheet column (0-6) from the robot's centre line, in mm."""
+    offset = (sheet_column - CENTRE_COLUMN) * COLUMN_PITCH
+    offset += STAGING_EXTRA * sum(1 for c in STAGING_COLUMN.values() if sheet_column >= c)
+    return offset
+
+
 def _xy(row, sheet_column):
-    return (GRID_NEAR_X + row * ROW_PITCH, (sheet_column - CENTRE_COLUMN) * COLUMN_PITCH)
+    return (GRID_NEAR_X + row * ROW_PITCH, column_offset(sheet_column))
 
 
 SQUARES = [_xy(i // GRID_COLUMNS, i % GRID_COLUMNS) for i in range(GRID_ROWS * GRID_COLUMNS)]
@@ -497,9 +514,9 @@ def set_gripper(value):
 
 
 def get_ready_to_grab():
-    """Before going down to pick: open the gripper (the cup needs nothing)."""
+    """Before going down to pick: open the gripper wide (the cup needs nothing)."""
     if END_EFFECTOR == "gripper":
-        set_gripper(GRIPPER_OPEN)
+        set_gripper(GRIPPER_PICK_OPEN)
 
 
 def grab():
@@ -713,19 +730,22 @@ def place_piece(square, player):
         raise RuntimeError(f"{len(missing)} spot(s) not calibrated ({listed}). "
                            "Run test_mycobot_squares.py.")
 
-    for stack, count in enumerate(stacks):
-        if count > 0:
-            layer = count - 1  # top block of this stack (0 = on the table)
-            try:
-                pick_from_spot(spot_name("staging", player, stack), layer)
-                drop_at_spot(spot_name("square", square))
-            except Exception:
-                release()  # don't keep holding a block after a failed move
-                raise
-            stacks[stack] -= 1
-            return
+    if max(stacks) == 0:
+        raise RuntimeError(f"No staged blocks left for {'Red' if player == 1 else 'Yellow'}")
 
-    raise RuntimeError(f"No staged blocks left for {'Red' if player == 1 else 'Yellow'}")
+    # Take from the tallest stack (the nearest one if several are equal):
+    # all the top blocks first, then the middles, then the bottoms. So the
+    # stacks either side are never more than one block higher than the one
+    # being picked, and the gripper body can't catch on them.
+    stack = max(range(len(stacks)), key=lambda i: (stacks[i], -i))
+    layer = stacks[stack] - 1  # top block of this stack (0 = on the table)
+    try:
+        pick_from_spot(spot_name("staging", player, stack), layer)
+        drop_at_spot(spot_name("square", square))
+    except Exception:
+        release()  # don't keep holding a block after a failed move
+        raise
+    stacks[stack] -= 1
 
 
 def reset():
