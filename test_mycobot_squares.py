@@ -13,6 +13,7 @@ fingers for the gripper. The saved "down" pose is where the arm holds that
 block in its final resting place, so the drop is the same as the pick.
 """
 
+import math
 import re
 import time
 
@@ -506,16 +507,17 @@ def test_pick_and_place():
 
 
 def show_reach():
-    far, far_mm, near, near_mm, beyond = robot.reach_report()
+    far, far_mm, near, near_mm, beyond, too_close = robot.reach_report()
     print(f"Sheet gap {robot.SHEET_GAP:g} mm: nearest spot {near} is {near_mm:.0f} mm "
           f"from the base, farthest {far} is {far_mm:.0f} mm (arm's rated reach "
           f"{robot.REACH_LIMIT} mm).")
     if beyond:
-        print(f"  Probably out of reach: {', '.join(beyond)}. Move the sheet closer "
-              "(option 4).")
+        print(f"  Probably out of reach: {', '.join(beyond)}.")
+    if too_close:
+        print(f"  Too close to the base (under {robot.NEAR_LIMIT} mm): {', '.join(too_close)}.")
 
 
-# ---- Grip height ----
+# ---- Grip height and offset ----
 
 def heights_known():
     """True once the grip height is measured or any spot is calibrated."""
@@ -529,37 +531,55 @@ HEIGHT_WARNING = ("Grip height not measured yet, so every height is a guess and 
                   "Run option 4 first: it measures it.")
 
 
-def save_grip_z(z):
-    """Write the measured grip height into robot.py (GRIP_Z)."""
+def save_setting(name, value):
+    """Rewrite one `NAME = ...` line in robot.py so the value is kept next time."""
     path = robot.__file__
     with open(path) as f:
         text = f.read()
-    values = dict(robot.GRIP_Z)
-    line = "GRIP_Z = {" + ", ".join(f'"{k}": {v!r}' for k, v in values.items()) + "}"
-    new_text, count = re.subn(r"^GRIP_Z = \{[^}]*\}", line, text, count=1, flags=re.MULTILINE)
+    if isinstance(value, dict):
+        line = f"{name} = {{" + ", ".join(f'"{k}": {v!r}' for k, v in value.items()) + "}"
+        pattern = rf"^{name} = \{{[^}}]*\}}"
+    else:
+        line = f"{name} = {value:g}"
+        pattern = rf"^{name} = [\d.]+"
+    new_text, count = re.subn(pattern, line, text, count=1, flags=re.MULTILINE)
     if count != 1:
-        print(f"  Couldn't find GRIP_Z in robot.py. Set {robot.END_EFFECTOR} to {z:g} by hand.")
-        return
+        print(f"  Couldn't find {name} in robot.py. Set it by hand: {line}")
+        return False
     with open(path, "w") as f:
         f.write(new_text)
-    print(f"  Saved: grip height {z:g} for the {robot.END_EFFECTOR} in robot.py.")
+    return True
+
+
+def describe_offset(dx, dy):
+    """Plain words for how far the end plate sits from the fingertips."""
+    parts = []
+    if abs(dx) >= 3:
+        parts.append(f"{abs(dx):.0f} mm {'further from' if dx > 0 else 'nearer to'} the robot")
+    if abs(dy) >= 3:
+        # +y is the robot's left = the player's right
+        parts.append(f"{abs(dy):.0f} mm towards the {'Red/Yellow' if dy > 0 else 'square 1'} side")
+    return " and ".join(parts) or "within a few mm"
 
 
 def measure_grip_height():
-    """Hold the tool on a block by hand; read and save the height. True if done."""
+    """Hold the tool on a block at square 13 by hand: read height and offset. True if done."""
     print(f"""
-MEASURE THE GRIP HEIGHT  ({robot.END_EFFECTOR})
+MEASURE THE GRIP HEIGHT AND OFFSET  ({robot.END_EFFECTOR})
 
-Every height the arm uses before calibration comes from this, including
-hover. Measured by hand, so the arm makes no big moves.
+Every position the arm uses before calibration comes from this: the
+height (hover included) and how far the tool sits from the end of the arm.
+Measured by hand, so the arm makes no big moves. Do it with the sheet in
+its final place.
 
-1. Put one block on square 13 (the middle of the board).
+1. Put one block on square 13, centred in the circle.
 2. The arm will go limp. Hold it.
 3. Bring the tool down onto the block, pointing straight down:""")
     if robot.END_EFFECTOR == "gripper":
-        print("   gripper open, fingers either side of the block, at the height you'd grip it.")
+        print("   gripper open, fingers either side of the block, tips a few mm above the")
+        print("   table, at the height you'd grip it.")
     else:
-        print("   cup resting flat on top of the block.")
+        print("   cup resting flat on the middle of the block.")
     if ask("Enter to start, or q to cancel: ") == "q":
         return False
 
@@ -576,20 +596,29 @@ hover. Measured by hand, so the arm makes no big moves.
         robot.last_target = None
         return False
 
-    z = round(coords[2], 1)
+    x, y, z = (round(c, 1) for c in coords[:3])
     print(f"  Grip height: z = {z:g} (it was guessing {robot.DOWN_Z:g}).")
+    nx, ny = robot.nominal_position(robot.ANCHOR_SPOT)
+    dx, dy = x - nx, y - ny
+    print(f"  Square 13 on the layout: x={nx:g}  y={ny:g}.  End of the arm: x={x:g}  y={y:g}.")
+    print(f"  So the end of the arm sits {describe_offset(dx, dy)} compared with the")
+    print("  fingertips (this includes any small error in the distance or centring).")
+    print("  Starting positions now allow for it.")
+
     robot.set_down_z(z)
-    save_grip_z(z)
+    robot.set_grip_anchor(x, y)
+    if save_setting("GRIP_Z", robot.GRIP_Z) and save_setting("GRIP_ANCHOR", robot.GRIP_ANCHOR):
+        print(f"  Saved for the {robot.END_EFFECTOR} in robot.py.")
 
     # Up a little, straight, so it clears the block, then home.
     print("  Lifting and going home. Hands clear.")
     robot.last_target = None
     try:
-        robot.move_to(coords[0], coords[1], z + 30, mode=1)
+        robot.move_to(x, y, z + 30, mode=1)
     except RuntimeError as error:
         print(f"  ({error}; going home directly)")
     robot.home()
-    print(f"  Hover will now be {z + HOVER_CLEARANCE:g} ({HOVER_CLEARANCE} mm above this).")
+    print(f"  Hover will be {z + HOVER_CLEARANCE:g} ({HOVER_CLEARANCE} mm above this).")
     return True
 
 
@@ -622,36 +651,19 @@ in the right place first, then fix it down.
 """
 
 
-def save_sheet_gap(gap):
-    """Write SHEET_GAP = gap into robot.py, so the game starts from it next time."""
-    path = robot.__file__
-    with open(path) as f:
-        text = f.read()
-    new_text, count = re.subn(r"^SHEET_GAP = [\d.]+", f"SHEET_GAP = {gap:g}", text,
-                              count=1, flags=re.MULTILINE)
-    if count != 1:
-        print(f"  Couldn't find SHEET_GAP in robot.py. Set it to {gap:g} by hand.")
-        return
-    with open(path, "w") as f:
-        f.write(new_text)
-    print(f"  Saved: SHEET_GAP = {gap:g} in robot.py.")
-
-
 def reach_test(name):
     """Can the arm point straight down at this spot? Shows it from above.
 
     Returns "ok", or a short reason it failed.
     """
-    label, key = find_spot(name)
-    x, y, down_z = get_spot(key)
+    label, _ = find_spot(name)
+    x, y, down_z = robot.start_position(name)
+    if math.hypot(x, y) < robot.NEAR_LIMIT:
+        return "too close to the base"
     hover_z = down_z + HOVER_CLEARANCE
-    target_down = [x, y, down_z] + robot.TOOL_DOWN
-    target_hover = [x, y, hover_z] + robot.TOOL_DOWN
-    down_ok = robot.can_reach(target_down)
-    hover_ok = robot.can_reach(target_hover)
-    if not down_ok:
+    if not robot.can_reach([x, y, down_z] + robot.TOOL_DOWN):
         return "can't reach block height"
-    if not hover_ok:
+    if not robot.can_reach([x, y, hover_z] + robot.TOOL_DOWN):
         return "can't reach hover height above it"
     robot.move_to(x, y, hover_z)
     print(f"  The arm is above {label}, about {HOVER_CLEARANCE} mm up.")
@@ -662,10 +674,6 @@ def reach_test(name):
 
 
 def setup_sheet():
-    if not robot.grip_z_measured():
-        if not measure_grip_height():
-            print("Grip height needed before the reach test. Run option 4 again when ready.")
-            return
     print(SHEET_STEPS)
     text = ask(f"Measured distance in mm (Enter to keep {robot.SHEET_GAP:g}): ")
     if text:
@@ -677,16 +685,28 @@ def setup_sheet():
             print("Type a number of mm, e.g. 55.")
             return
         robot.set_sheet_gap(gap)
-    show_reach()
+        save_setting("SHEET_GAP", gap)
 
-    _, _, near, _, _ = robot.reach_report()
+    if robot.grip_z_measured():
+        again = ask("\nMeasure grip height and offset at square 13 again? Do it if the sheet\n"
+                    "or the tool has moved. (Enter = yes, s = skip): ")
+        measured = again == "s" or measure_grip_height()
+    else:
+        measured = measure_grip_height()
+    if not measured:
+        print("The measurement is needed before the reach test. Run option 4 again when ready.")
+        return
+
+    print()
+    show_reach()
+    _, _, near, _, _, _ = robot.reach_report()
     # The two far corners: bottom-left square and bottom of the Yellow column.
     tests = [("21", "far corner"), ("y5", "far corner"), (near, "nearest")]
     print()
-    print("5. Test it. The arm will go above the two far corners and the")
-    print("   nearest square, without touching down. Keep hands clear, and be")
-    print("   ready to switch the arm off if the gripper gets close to the arm.")
-    if ask("   Enter to start, or q to skip: ") == "q":
+    print("Test it. The arm will go above the two far corners and the nearest")
+    print("square, without touching down. Keep hands clear, and be ready to")
+    print("switch the arm off if the gripper gets close to the arm.")
+    if ask("Enter to start, or q to skip: ") == "q":
         return
 
     results = {}
@@ -706,25 +726,20 @@ def setup_sheet():
     far_ok = results.get("21") == "ok" and results.get("y5") == "ok"
     if near_ok and far_ok:
         print("All reached. The sheet is in a good place.")
-        print("6. Fix it: tape the sheet down, and mark around the robot's base")
-        print("   (tape on the corners) so you can put it back in the same place.")
-        if text and ask(f"   Save {robot.SHEET_GAP:g} mm in robot.py for next time? (y/n): ") == "y":
-            save_sheet_gap(robot.SHEET_GAP)
+        print("Fix it: tape the sheet down, and mark around the robot's base")
+        print("(tape on the corners) so you can put it back in the same place.")
         print("Next: option 1 to calibrate each spot.")
         return
 
     if not far_ok and not near_ok:
-        print("Neither end worked. Check the sheet is landscape and centred,")
-        print("then measure again.")
+        print("Neither end worked. Paste this output to get help working out why.")
     elif not far_ok:
-        print("The far corners are out of reach: slide the sheet 10 mm closer")
-        print("to the robot, measure again, and rerun this.")
+        print("The far corners are out of reach. Either slide the sheet 10 mm closer")
+        print("(if the nearest square has room), or raise the robot 20-40 mm on a")
+        print("flat, solid block. Then rerun this, measuring again.")
     else:
-        print("The nearest square is too close: slide the sheet 10 mm away")
-        print("from the robot, measure again, and rerun this.")
-    if any(r == "not over the spot" for r in results.values()):
-        print("If the tool was well off a spot sideways, check the base is")
-        print("lined up with column 4. A few mm out is normal: calibration fixes that.")
+        print("The nearest square is too close: slide the sheet 10 mm away from")
+        print("the robot, then rerun this, measuring again.")
 
 
 def main():
@@ -742,9 +757,9 @@ def main():
         "1": ("Go to a square or staging spot (hover/down)", test_go_to),
         "2": ("Grab and release", test_end_effector),
         "3": ("Pick and place (staging stack to square)", test_pick_and_place),
-        "4": ("Set up: measure grip height, place the sheet, reach test (do this first)",
+        "4": ("Set up: place the sheet, measure grip height and offset, reach test (do this first)",
               setup_sheet),
-        "5": ("Measure grip height again (after changing the gripper or cup)",
+        "5": ("Measure grip height and offset again (after moving the sheet or changing the tool)",
               measure_grip_height),
     }
 

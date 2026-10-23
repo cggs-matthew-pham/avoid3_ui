@@ -63,23 +63,19 @@ rows on a 40 mm grid, robot at the far (top) edge.
 
 **Set up first:** `test_mycobot_squares.py`, option 4. It:
 
-1. Measures the grip height: you hold the open gripper (or cup) on a block
-   by hand and it reads the height. Every height before calibration comes
-   from this, hover included. Until it's measured the tool won't travel to
-   spots, because a guessed height can send the arm too high and make it
-   hit itself near the base. Saved to `GRIP_Z` in `robot.py`; option 5
-   measures again after changing the tool.
-2. Explains where to put the sheet and asks for your measurement.
+1. Explains where to put the sheet and asks for your measurement
+   (`SHEET_GAP`).
+2. Measures the grip height and offset: you hold the open gripper (or cup)
+   on a block on square 13 by hand, and it reads where the end of the arm
+   is. The arm's coordinates are for its end plate, not the fingertips, and
+   the gripper can sit off to one side, so every starting position is
+   shifted by the measured difference. Until this is done the tool won't
+   travel to spots: a guessed height can send the arm too high and make it
+   hit itself near the base. Saved to `GRIP_Z` and `GRIP_ANCHOR` in
+   `robot.py`; option 5 measures again after moving the sheet or tool.
 3. Moves the arm above the two far corners and the nearest square to check
-   it can reach them.
-
-- Landscape, title edge against the robot, Red and Yellow on the player's right.
-- Centre of the robot's turntable in line with squares 4, 9, 14, 19, 24: the
-  middle of the whole sheet (counting Red and Yellow), not of the 5 x 5.
-- Centre of the base's turntable 40-60 mm from the paper edge (`SHEET_GAP`
-  in `robot.py`; option 4 can save it for you).
-- Then tape the sheet down and mark around the base. Calibration saves joint
-  angles, so if the sheet moves afterwards every move misses by that much.
+   it can reach them. Coordinate moves closer than 80 mm to the base
+   (`NEAR_LIMIT`) are refused, because the arm folds over itself there.
 
 At a 60 mm gap the far corners (square 21 and Y5) are about 273 mm from the
 base, inside the arm's rated 280 mm. Portrait would put them over 320 mm.

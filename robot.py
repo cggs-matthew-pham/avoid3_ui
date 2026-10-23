@@ -65,6 +65,14 @@ START_ANGLES = [25, 20, -120, 10, 0, -65]
 # or too low. Measure it: option 4 in test_mycobot_squares.py asks you to
 # hold the gripper on a block by hand, then writes it here.
 GRIP_Z = {"suction": None, "gripper": None}   # None = not measured yet
+
+# Where the arm's end plate actually was (x, y) when the tool was held on
+# square 13 during that measurement. The arm's coordinates are for the end
+# plate, not the fingertips, and the gripper may sit off to one side, so
+# this shifts every starting guess by the real difference. Also absorbs a
+# small error in SHEET_GAP or centring. Written by option 4.
+GRIP_ANCHOR = {"suction": None, "gripper": None}
+ANCHOR_SPOT = "13"
 GRIP_Z_GUESS = {"suction": 175, "gripper": 200}
 DOWN_Z = GRIP_Z[END_EFFECTOR] or GRIP_Z_GUESS[END_EFFECTOR]
 BLOCK_HEIGHT = 15  # mm; each block up a stack sits this much higher
@@ -138,6 +146,11 @@ def grip_z_measured():
     return GRIP_Z[END_EFFECTOR] is not None
 
 
+def set_grip_anchor(x, y):
+    """Use a measured end-plate position at ANCHOR_SPOT (this run only)."""
+    GRIP_ANCHOR[END_EFFECTOR] = (round(x, 1), round(y, 1))
+
+
 def set_down_z(z):
     """Use a measured grip height (this run only; the test script saves it).
 
@@ -184,6 +197,10 @@ TOOL_DOWN = [180, 0, 0]  # rx, ry, rz: tool pointing straight down
 
 PLAYER_LETTER = {1: "r", 2: "y"}
 
+# Closer than this to the base, the arm has to fold back over itself to
+# point straight down (and can hit itself). Coordinate moves refuse it.
+NEAR_LIMIT = 80  # mm
+
 # The myCobot 280's rated reach. With the tool pointing straight down at
 # table height it is a little less, so spots near this need checking.
 REACH_LIMIT = 280  # mm
@@ -208,22 +225,32 @@ def all_spot_names():
     return names
 
 
-def reach_report():
-    """Distance from the robot base to each spot's starting position.
+def start_position(name):
+    """(x, y, z) the arm will go to for a spot: saved if calibrated, else the best guess."""
+    kind, *index = _spot_index(name)
+    if saved_angles(name):
+        if kind == "square":
+            return SQUARES[index[0]] + (SQUARE_Z[index[0]],)
+        player, i = index
+        return STAGING[player][i] + (STAGING_Z[player][i],)
+    return predict_spot(name)[:3]
 
-    Returns (farthest name, farthest mm, nearest name, nearest mm, [names
-    beyond REACH_LIMIT]). Calibrated spots use their saved position.
+
+def reach_report():
+    """Distance from the robot base to where the arm will go for each spot.
+
+    Returns (farthest name, farthest mm, nearest name, nearest mm,
+    [names beyond REACH_LIMIT], [names closer than NEAR_LIMIT]).
     """
     distances = {}
-    for i, (x, y) in enumerate(SQUARES):
-        distances[spot_name("square", i)] = math.hypot(x, y)
-    for player, spots in STAGING.items():
-        for i, (x, y) in enumerate(spots):
-            distances[spot_name("staging", player, i)] = math.hypot(x, y)
+    for name in all_spot_names():
+        x, y, _ = start_position(name)
+        distances[name] = math.hypot(x, y)
     far = max(distances, key=distances.get)
     near = min(distances, key=distances.get)
     beyond = [name for name, d in distances.items() if d > REACH_LIMIT]
-    return far, distances[far], near, distances[near], beyond
+    too_close = [name for name, d in distances.items() if d < NEAR_LIMIT]
+    return far, distances[far], near, distances[near], beyond, too_close
 
 
 # ---- Calibration file (calibration.csv) ----
@@ -378,6 +405,12 @@ def predict_spot(name, neighbours=3):
         distance = math.hypot(sx - nx, sy - ny)
         samples.append((distance, float(row["sent_x"]) - sx, float(row["sent_y"]) - sy,
                         float(row["sent_z"])))
+    anchor = GRIP_ANCHOR[END_EFFECTOR]
+    if anchor is not None:
+        # The hand-measured spot counts like a calibrated one.
+        ax, ay = nominal_position(ANCHOR_SPOT)
+        distance = math.hypot(ax - nx, ay - ny)
+        samples.append((distance, anchor[0] - ax, anchor[1] - ay, DOWN_Z))
     if not samples:
         return nx, ny, DOWN_Z, 0
 
@@ -556,6 +589,10 @@ def move_to(x, y, z, mode=0):
         raise RuntimeError(f"Refusing to move to z={z}: below MIN_Z ({MIN_Z})")
     if mode not in (0, 1):
         raise RuntimeError(f"mode must be 0 or 1, got {mode}")
+    if math.hypot(x, y) < NEAR_LIMIT:
+        raise RuntimeError(f"Refusing to move to x={x:g} y={y:g}: closer than {NEAR_LIMIT} mm "
+                           "to the base, the arm would fold over itself. Move the sheet "
+                           "further away.")
 
     z = z + max(0, x - SAG_START_X) * SAG_PER_MM  # droop correction
     target = [x, y, z] + TOOL_DOWN
