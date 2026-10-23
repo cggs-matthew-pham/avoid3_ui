@@ -106,27 +106,16 @@ def board_page(c):
         text(c, column_x(column), top_of_grid - 3, name, 8, bold=True, colour=colour,
              align="centre")
 
+    # Numbered from the player's side: ROW 1 (squares 1-5, R1, Y1) is the
+    # row nearest the player and fills first. row 0 here is the robot's side.
     for row in range(ROWS):
+        player_row = ROWS - 1 - row
         for column in range(COLUMNS):
-            number = row * COLUMNS + column + 1
+            number = player_row * COLUMNS + column + 1
             spot(c, column_x(column), row_y(row), GREY, str(number))
         for name, column in STAGING.items():
             colour = RED if name == "RED" else YELLOW
-            spot(c, column_x(column), row_y(row), colour, f"{name[0]}{row + 1}")
-
-    # Fill order: small arrows between the squares of each column, pointing
-    # away from the player (each column builds up from the player's side).
-    c.setFillColorRGB(*GREY)
-    for column in range(COLUMNS):
-        cx = column_x(column)
-        for row in range(ROWS - 1):
-            gap_y = row_y(row) + ROW_PITCH / 2     # middle of the gap below this row
-            path = c.beginPath()
-            path.moveTo(cx * mm, (PAGE_H - gap_y + 1) * mm)
-            path.lineTo((cx - 1.6) * mm, (PAGE_H - gap_y - 1) * mm)
-            path.lineTo((cx + 1.6) * mm, (PAGE_H - gap_y - 1) * mm)
-            path.close()
-            c.drawPath(path, fill=1, stroke=0)
+            spot(c, column_x(column), row_y(row), colour, f"{name[0]}{player_row + 1}")
 
     # Row labels, counted from the player's side, in the gap before Red.
     label_x = (column_x(COLUMNS - 1) + column_x(STAGING["RED"])) / 2
@@ -141,11 +130,11 @@ def board_page(c):
     for column in range(COLUMNS):
         text(c, column_x(column), bottom + 6, str(column + 1), 10, bold=True, align="centre")
     text(c, column_x(0) - SQUARE / 2, bottom + 13,
-         "Choose a column: the block goes in its lowest empty square. Each column fills from "
-         "ROW 1 (nearest you) upwards, so a square", 7, colour=GREY)
+         "Choose a column: the block goes in the empty square nearest you (ROW 1 first, then "
+         "ROW 2, and so on).", 7, colour=GREY)
     text(c, column_x(0) - SQUARE / 2, bottom + 17,
-         "can only be used once the one below it is filled. "
-         "3 of your colour in a line (across, up or diagonal) loses.", 7, colour=GREY)
+         "3 of your colour in a line (across, along a column or diagonal) loses.",
+         7, colour=GREY)
 
     # Footer: sizes and a scale check.
     footer = PAGE_H - 8

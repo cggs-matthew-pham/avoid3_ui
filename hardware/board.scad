@@ -18,11 +18,11 @@
 // Layout, seen from the player's side with the robot at the far edge:
 //
 //                  ROBOT
-//     1   2   3   4   5    R1  Y1
-//     6   7   8   9  10    R2  Y2
-//    11  12  13  14  15    R3  Y3
-//    16  17  18  19  20    R4  Y4
-//    21  22  23  24  25    R5  Y5      <- bottom row: fills first
+//    21  22  23  24  25    R5  Y5      ROW 5
+//    16  17  18  19  20    R4  Y4      ROW 4
+//    11  12  13  14  15    R3  Y3      ROW 3
+//     6   7   8   9  10    R2  Y2      ROW 2
+//     1   2   3   4   5    R1  Y1      ROW 1: fills first (player's side)
 //
 // The engraved labels match the names in test_mycobot_squares.py, so
 // calibrate "13" at the pocket labelled 13, "r1" at R1, and so on.
@@ -34,7 +34,7 @@
 // REACH: the console line "Reach:" gives the distance from the robot base
 // to the farthest pocket. Keep it under about 280 mm (the rated reach; the
 // arm has to point straight down there). With these defaults it is about
-// 246 mm. Check the gripper fingers still fit between neighbouring blocks
+// 250 mm. Check the gripper fingers still fit between neighbouring blocks
 // before making the pitches smaller.
 
 /* [What to show / export] */
@@ -91,6 +91,9 @@ function row_y(r)    = board_len - margin - row_pitch / 2 - r * row_pitch;   // 
 board_w   = 2 * margin + (columns + 2) * column_pitch + 2 * staging_gap;   // left -> right
 board_len = 2 * margin + rows * row_pitch;                       // player -> robot
 
+// Pocket i counts from the robot's side; its printed name counts from the
+// player's side (ROW 1 = squares 1-5, nearest the player).
+function name_of(i) = (rows - 1 - floor(i / columns)) * columns + i % columns + 1;
 function grid_xy(i)          = [column_x(i % columns), row_y(floor(i / columns))];
 function staging_xy(side, i) = [column_x(columns + side), row_y(i)];  // side 0 = Red, 1 = Yellow
 
@@ -131,10 +134,10 @@ module board() {
         cube([board_w, board_len, thickness]);
 
         for (i = [0:rows * columns - 1])
-            translate(grid_xy(i)) pocket(str(i + 1));
+            translate(grid_xy(i)) pocket(str(name_of(i)));
 
         for (side = [0:1], i = [0:stacks - 1])
-            translate(staging_xy(side, i)) pocket(str(side == 0 ? "R" : "Y", i + 1), staging_depth);
+            translate(staging_xy(side, i)) pocket(str(side == 0 ? "R" : "Y", stacks - i), staging_depth);
 
         // Robot edge label, so the board goes down the right way round.
         if (labels)
@@ -192,9 +195,9 @@ module template() {
             square([board_w - 2 * template_line, board_len - 2 * template_line]);
     }
     for (i = [0:rows * columns - 1])
-        translate(grid_xy(i)) template_spot(str(i + 1));
+        translate(grid_xy(i)) template_spot(str(name_of(i)));
     for (side = [0:1], i = [0:stacks - 1])
-        translate(staging_xy(side, i)) template_spot(str(side == 0 ? "R" : "Y", i + 1));
+        translate(staging_xy(side, i)) template_spot(str(side == 0 ? "R" : "Y", stacks - i));
     translate([column_x(robot_centre_column), board_len - margin / 2])
         text("ROBOT", size = 3.5, halign = "center", valign = "center",
              font = "Liberation Sans:style=Bold");

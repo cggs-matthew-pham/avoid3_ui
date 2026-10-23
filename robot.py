@@ -104,11 +104,11 @@ SAG_PER_MM = 0.0
 # hardware/make_sheet.py) and hardware/board.scad. Seen from the player's side, robot at the far edge:
 #
 #                  ROBOT
-#     1   2   3   4   5    R1  Y1
-#     6   7   8   9  10    R2  Y2
-#    11  12  13  14  15    R3  Y3
-#    16  17  18  19  20    R4  Y4
-#    21  22  23  24  25    R5  Y5      <- bottom row: fills first
+#    21  22  23  24  25    R5  Y5      ROW 5
+#    16  17  18  19  20    R4  Y4      ROW 4
+#    11  12  13  14  15    R3  Y3      ROW 3
+#     6   7   8   9  10    R2  Y2      ROW 2
+#     1   2   3   4   5    R1  Y1      ROW 1: fills first
 #
 #                 PLAYER
 #
@@ -130,7 +130,7 @@ COLUMN_PITCH = 40     # mm between column centres (left / right): room for the o
 # test_mycobot_squares.py walks you through it.
 SHEET_GAP = 60        # mm, base rotation centre to the paper edge
 EDGE_TO_TOP_ROW = 55  # mm, paper edge to the centre of the top row (from the sheet)
-GRID_NEAR_X = SHEET_GAP + EDGE_TO_TOP_ROW   # mm from robot to the centre of the top row (1-5)
+GRID_NEAR_X = SHEET_GAP + EDGE_TO_TOP_ROW   # mm from robot to the centre of the row nearest it (21-25)
 SHEET_COLUMNS = 7     # 5 board columns, then Red, then Yellow
 CENTRE_COLUMN = 3     # sheet column (0-6) in line with the robot base: 3 = board column 4
 
@@ -231,16 +231,19 @@ NEAR_LIMIT = 80  # mm
 REACH_LIMIT = 280  # mm
 
 
-# Names count from 1, like the screen and the printed sheet: squares
-# "1".."25", staging "r1".."r5" and "y1".."y5". Lists in the code still
-# count from 0, so square index 12 is named "13".
+# Names are what's printed on the sheet, counted from the PLAYER's side
+# (ROW 1, which fills first): squares "1".."25" (1-5 nearest the player),
+# stacks "r1".."r5" and "y1".."y5" (r1/y1 nearest the player).
+# Lists in the code count from 0 starting at the ROBOT's side, like
+# game.board: list index 0 is square "21", index 20 is square "1".
 
 def spot_name(kind, *index):
-    """("square", 12) -> "13", ("staging", 1, 0) -> "r1"."""
+    """("square", 20) -> "1", ("square", 0) -> "21", ("staging", 1, 4) -> "r1"."""
     if kind == "square":
-        return str(index[0] + 1)
+        row, column = divmod(index[0], GRID_COLUMNS)
+        return str((GRID_ROWS - 1 - row) * GRID_COLUMNS + column + 1)
     player, spot = index
-    return f"{PLAYER_LETTER[player]}{spot + 1}"
+    return f"{PLAYER_LETTER[player]}{STAGING_COUNT - spot}"
 
 
 def all_spot_names():
@@ -309,10 +312,17 @@ def _sort_key(item):
 
 
 def _spot_index(name):
-    """"13" -> ("square", 12); "r1" -> ("staging", 1, 0)."""
+    """The reverse of spot_name: "1" -> ("square", 20); "r1" -> ("staging", 1, 4)."""
     if name.isdigit():
-        return ("square", int(name) - 1)
-    return ("staging", {"r": 1, "y": 2}[name[0]], int(name[1:]) - 1)
+        number = int(name) - 1
+        if not 0 <= number < GRID_ROWS * GRID_COLUMNS:
+            raise ValueError(f"no square {name}")
+        player_row, column = divmod(number, GRID_COLUMNS)
+        return ("square", (GRID_ROWS - 1 - player_row) * GRID_COLUMNS + column)
+    number = int(name[1:])
+    if not 1 <= number <= STAGING_COUNT:
+        raise ValueError(f"no stack {name}")
+    return ("staging", {"r": 1, "y": 2}[name[0]], STAGING_COUNT - number)
 
 
 def load_calibration():

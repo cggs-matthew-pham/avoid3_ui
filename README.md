@@ -57,19 +57,22 @@ rows, robot at the top edge:
 
 ```
                  ROBOT
-    1   2   3   4   5    R1  Y1
-    6   7   8   9  10    R2  Y2
-   11  12  13  14  15    R3  Y3
-   16  17  18  19  20    R4  Y4
-   21  22  23  24  25    R5  Y5      <- bottom row: fills first
+   21  22  23  24  25    R5  Y5      ROW 5
+   16  17  18  19  20    R4  Y4      ROW 4
+   11  12  13  14  15    R3  Y3      ROW 3
+    6   7   8   9  10    R2  Y2      ROW 2
+    1   2   3   4   5    R1  Y1      ROW 1: fills first
                 PLAYER
+
+Everything is numbered from the player's side, like Connect 4 seen from the
+front: a block goes in the empty square nearest the player in its column.
 ```
 
 Rows are 25 mm apart and columns 40 mm apart, with an extra 5 mm before
 the Red column and again before Yellow (`STAGING_EXTRA`), so the gripper can
 open wider when picking from a stack. The gripper closes
 left-right (across the columns), so the fingers never reach forwards or
-back and the rows can be close. That keeps the far corners about 246 mm from
+back and the rows can be close. That keeps the far corners about 250 mm from
 the base (inside the 280 mm rated reach) and the nearest row about 115 mm out
 (well clear of the base). If your gripper closes towards / away from the
 robot, change `TOOL_DOWN`'s rz to 90 in `robot.py`.
@@ -90,12 +93,13 @@ and `row_pitch` / `column_pitch` in `hardware/board.scad`.
    travel to spots: a guessed height can send the arm too high and make it
    hit itself near the base. Saved to `GRIP_Z` and `GRIP_ANCHOR` in
    `robot.py`; option 5 measures again after moving the sheet or tool.
-3. Moves the arm above the two far corners and the nearest square to check
+3. Moves the arm out towards the two far corners (square 1 and Y1) and above
+   the nearest square to check
    it can reach them. Coordinate moves closer than 80 mm to the base
    (`NEAR_LIMIT`) are refused, because the arm folds over itself there.
 
 The sheet is designed for a 60 mm gap: the far corners are then about
-246 mm from the base and the nearest squares about 115 mm.
+250 mm from the base and the nearest squares about 115 mm.
 
 ## End effector
 

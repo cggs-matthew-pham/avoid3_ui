@@ -31,24 +31,18 @@ def ask(message):
 def find_spot(name):
     """Turn '13' into square 13, or 'r1' / 'y3' into a staging spot.
 
-    Names count from 1. Returns (label, key) where key holds the list index
-    (from 0): "13" -> ("square", 12), "r1" -> ("staging", 1, 0). None if the
-    name doesn't match anything.
+    Names are as printed on the sheet (see robot.spot_name). Returns
+    (label, key), key being robot's list index: "1" -> ("square", 20),
+    "r1" -> ("staging", 1, 4). None if the name doesn't match anything.
     """
-    if name.isdigit():
-        index = int(name) - 1
-        if 0 <= index < len(SQUARES):
-            return f"square {index + 1}", ("square", index)
+    if not (name.isdigit() or (name[:1] in ("r", "y") and name[1:].isdigit())):
         return None
-
-    players = {"r": 1, "y": 2}
-    if name[:1] in players and name[1:].isdigit():
-        player = players[name[0]]
-        index = int(name[1:]) - 1
-        if 0 <= index < len(STAGING[player]):
-            return f"{name[0].upper()}{index + 1}", ("staging", player, index)
-
-    return None
+    try:
+        key = robot._spot_index(name)
+    except (ValueError, KeyError):
+        return None
+    label = f"square {name}" if key[0] == "square" else name.upper()
+    return label, key
 
 
 def stack_size(key):
@@ -145,10 +139,12 @@ NUDGE = re.compile(r"^([xyz])([+-])(\d+(?:\.\d+)?)?$")
 
 
 def print_layout():
-    print("Squares, seen from the player (robot at the top):")
-    for row in range(5):
-        cells = "".join(f"{row * 5 + c + 1:4d}" for c in range(5))
-        print(f"  {cells}     R{row + 1}  Y{row + 1}")
+    print("The sheet, seen from the player (robot at the top):")
+    for row in range(robot.GRID_ROWS):
+        cells = "".join(f"{robot.spot_name('square', row * robot.GRID_COLUMNS + c):>4}"
+                        for c in range(robot.GRID_COLUMNS))
+        stacks = "  ".join(robot.spot_name("staging", p, row).upper() for p in (1, 2))
+        print(f"  {cells}     {stacks}     ROW {robot.GRID_ROWS - row}")
 
 
 def test_go_to():
@@ -714,7 +710,7 @@ in the right place first, then fix it down.
    turns (the middle of the round turntable, not the edge of the box) to
    the edge of the paper.
      - Use 60 mm: the sheet is designed for it (printed by the ROBOT mark).
-     - Closer helps the far corners (squares 21 and Y5).
+     - Closer helps the far corners (squares 1 and Y1, on the player's side).
      - Too close and the arm can't bend down onto the nearest squares.
 """
 
@@ -742,21 +738,38 @@ def reach_out(name):
         except RuntimeError as error:
             print(f"     stopped at {distance:.0f} mm: {error}")
             break
+        # The general arrival check allows 15 mm, more than one step here,
+        # so check this step's distance properly.
+        coords = robot.read_coords()
+        if coords is not None:
+            actual = math.hypot(coords[0], coords[1])
+            if actual < distance - 5:
+                print(f"     stopped at {distance:.0f} mm: the arm only got to {actual:.0f} mm.")
+                robot.last_target = None
+                break
         reached = distance
         print(f"     {distance:.0f} mm ok")
         distance += 20 if distance + 20 <= needed else 10
 
     if reached is None:
         return None, needed, False
-    px, py = ux * reached, uy * reached
+    # Come down to block height at the spot itself (or as far out as it got).
+    down_at = min(reached, needed)
+    px, py = ux * down_at, uy * down_at
     try:
+        robot.move_to(px, py, hover_z)
         robot.move_to(px, py, down_z, mode=1)   # straight down, no blocks on the sheet
         down_ok = True
         robot.move_to(px, py, hover_z, mode=1)
+        print(f"     came down to block height at {down_at:.0f} mm: ok")
     except RuntimeError as error:
-        print(f"     couldn't come down to block height there: {error}")
+        print(f"     couldn't come down to block height at {down_at:.0f} mm: {error}")
         down_ok = False
         robot.last_target = None
+        try:
+            robot.move_to(ux * reached, uy * reached, hover_z)
+        except RuntimeError:
+            pass
     return reached, needed, down_ok
 
 
@@ -804,7 +817,7 @@ def setup_sheet():
     _, _, near, _, _, _ = robot.reach_report()
     print()
     print("Test it. Clear all blocks off the sheet. The arm moves out towards each")
-    print("far corner (square 21 and Y5) in steps until it can't go further, and")
+    print("far corner (square 1 and Y1) in steps until it can't go further, and")
     print("comes down to block height there; then it goes above the nearest")
     print("square. Keep hands clear, and be ready to switch the arm off if the")
     print("gripper gets close to the arm.")
@@ -813,7 +826,7 @@ def setup_sheet():
 
     far_ok = True
     try:
-        for name in ("21", "y5"):
+        for name in ("1", "y1"):
             print(f"\n  Far corner {name.upper()}: reaching out...")
             reached, needed, down_ok = reach_out(name)
             if reached is None:
