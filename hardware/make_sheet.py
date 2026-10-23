@@ -114,13 +114,38 @@ def board_page(c):
             colour = RED if name == "RED" else YELLOW
             spot(c, column_x(column), row_y(row), colour, f"{name[0]}{row + 1}")
 
+    # Fill order: small arrows between the squares of each column, pointing
+    # away from the player (each column builds up from the player's side).
+    c.setFillColorRGB(*GREY)
+    for column in range(COLUMNS):
+        cx = column_x(column)
+        for row in range(ROWS - 1):
+            gap_y = row_y(row) + ROW_PITCH / 2     # middle of the gap below this row
+            path = c.beginPath()
+            path.moveTo(cx * mm, (PAGE_H - gap_y + 1) * mm)
+            path.lineTo((cx - 1.6) * mm, (PAGE_H - gap_y - 1) * mm)
+            path.lineTo((cx + 1.6) * mm, (PAGE_H - gap_y - 1) * mm)
+            path.close()
+            c.drawPath(path, fill=1, stroke=0)
+
+    # Row labels, counted from the player's side, in the gap before Red.
+    label_x = (column_x(COLUMNS - 1) + column_x(STAGING["RED"])) / 2
+    for row in range(ROWS):
+        fill_order = ROWS - row                     # bottom row = ROW 1
+        text(c, label_x, row_y(row) + 1, f"ROW {fill_order}", 7, bold=True, align="centre")
+        if fill_order == 1:
+            text(c, label_x, row_y(row) + 4.5, "fills first", 5.5, colour=GREY, align="centre")
+
     # Column numbers on the player's side.
     bottom = row_y(ROWS - 1) + SQUARE / 2
     for column in range(COLUMNS):
         text(c, column_x(column), bottom + 6, str(column + 1), 10, bold=True, align="centre")
     text(c, column_x(0) - SQUARE / 2, bottom + 13,
-         "Lowest available square in chosen column (row 21-25 fills first); "
-         "3 of your colour in a line loses.", 7, colour=GREY)
+         "Choose a column: the block goes in its lowest empty square. Each column fills from "
+         "ROW 1 (nearest you) upwards, so a square", 7, colour=GREY)
+    text(c, column_x(0) - SQUARE / 2, bottom + 17,
+         "can only be used once the one below it is filled. "
+         "3 of your colour in a line (across, up or diagonal) loses.", 7, colour=GREY)
 
     # Footer: sizes and a scale check.
     footer = PAGE_H - 8
