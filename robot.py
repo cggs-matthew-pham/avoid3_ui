@@ -322,6 +322,73 @@ def saved_angles(spot, layer=0):
             [float(down[j]) for j in ANGLE_COLUMNS])
 
 
+def nominal_position(name):
+    """Where a spot is on the sheet, from the layout numbers (not calibration)."""
+    kind, *index = _spot_index(name)
+    if kind == "square":
+        row, column = divmod(index[0], GRID_COLUMNS)
+        return _xy(row, column)
+    player, i = index
+    return _xy(i, STAGING_COLUMN[player])
+
+
+def predict_spot(name, neighbours=3):
+    """Best starting guess (x, y, down0 z) for a spot not yet calibrated.
+
+    The arm's coordinates are off by a few mm, but by about the same amount
+    at spots close together. So take the nearest calibrated spots, see how
+    far each ended up from its layout position, and shift this spot's
+    layout position by the average (closer spots count more).
+
+    Returns (x, y, z, how many calibrated spots it used).
+    """
+    nx, ny = nominal_position(name)
+    samples = []
+    for (spot, pose), row in calibration.items():
+        if pose != "down0" or spot == name or not row.get("sent_x"):
+            continue
+        try:
+            sx, sy = nominal_position(spot)
+        except (KeyError, ValueError):
+            continue
+        distance = math.hypot(sx - nx, sy - ny)
+        samples.append((distance, float(row["sent_x"]) - sx, float(row["sent_y"]) - sy,
+                        float(row["sent_z"])))
+    if not samples:
+        return nx, ny, DOWN_Z, 0
+
+    samples.sort()
+    nearest = samples[:neighbours]
+    weights = [1 / max(distance, 1) for distance, *_ in nearest]
+    total = sum(weights)
+    dx = sum(w * s[1] for w, s in zip(weights, nearest)) / total
+    dy = sum(w * s[2] for w, s in zip(weights, nearest)) / total
+    z = sum(w * s[3] for w, s in zip(weights, nearest)) / total
+    return round(nx + dx, 1), round(ny + dy, 1), round(z, 1), len(nearest)
+
+
+def next_to_calibrate(after=None):
+    """The next spot needing work, in board order after `after`.
+
+    First spots with no table position yet (hover + down0), then stacks
+    still missing upper layers. Returns (name, what's missing), or None if
+    everything is saved.
+    """
+    names = all_spot_names()
+    if after in names:
+        start = names.index(after) + 1
+        names = names[start:] + names[:start]
+    for name in names:
+        if not saved_angles(name):
+            return name, "position"
+    for player, sizes in STACK_SIZES.items():
+        for i, size in enumerate(sizes):
+            name = spot_name("staging", player, i)
+            if any(not saved_angles(name, layer) for layer in range(1, size)):
+                return name, "layers"
+    return None
+
+
 def missing_spots():
     """Spots the current layout needs that have no saved angles yet."""
     missing = [spot_name("square", i) for i in range(len(SQUARES))

@@ -160,16 +160,57 @@ def test_go_to():
     else:
         print("  pump / pump on / pump off = allow the suction pump (off by default)")
     print("  w = show where the arm is, save = keep this spot, q = back to menu")
+    print("  n = go to the next spot that still needs saving")
+    print("  layers = at a stack: do the 2nd and 3rd blocks one after the other")
     print("  check / check2 / check3 = replay the saved angles for layer 1 / 2 / 3,")
     print("                            exactly as the game moves: tests repeatability")
     print("Save at d (holding a block where it sits on the table): records the joint")
     print("angles the game will replay, then lifts straight up and records hover.")
-    print("Staging stacks: also save at d2 and d3 with 2 and 3 blocks stacked.")
+    print("Staging stacks: then 'layers' for the 2nd and 3rd blocks.")
     print("Big moves happen at hover; only fine-tune near the block.")
+    print("Quickest: type n, d, nudge, save; repeat. Spots not yet saved start from")
+    print("a guess corrected by the saved spots around them, so later ones need less nudging.")
 
     key = None        # which spot we're working on
     x = y = z = None  # where the arm was last sent
     level = None      # "h", "d", "d2" or "d3"
+    layer_queue = []  # stack layers still to do after 'layers'
+
+    def go_to(found):
+        """Lift if needed, then travel at hover to a spot. Returns the new state."""
+        if level in LAYER_COMMANDS:  # always lift before moving sideways
+            robot.move_to(x, y, lift_height(key, z), mode=1)
+        label, new_key = found
+        name = robot.spot_name(*new_key)
+        guess = ""
+        if not robot.saved_angles(name):
+            # Not calibrated: start from a guess corrected by its neighbours.
+            gx, gy, gz, used = robot.predict_spot(name)
+            set_spot(new_key, gx, gy, gz)
+            if used:
+                guess = f" (starting guess from {used} calibrated spot{'s' if used > 1 else ''} nearby)"
+        new_x, new_y, _ = get_spot(new_key)
+        new_z = hover_height(new_key)
+        robot.move_to(new_x, new_y, new_z)
+        stack = f" (stack of {stack_size(new_key)})" if new_key[0] == "staging" else ""
+        print(f"Over {label}{stack}{guess}")
+        show_position(new_x, new_y, new_z)
+        return new_key, new_x, new_y, new_z, "h"
+
+    def go_to_layer(layer):
+        """Prompt for the stack, then come down to its top block. Returns z, or None to stop."""
+        name = robot.spot_name(*key)
+        print(f"\n  Layer {layer + 1}: stack {layer + 1} blocks on {name.upper()}.")
+        if robot.END_EFFECTOR == "gripper":
+            print("  The gripper will open and come down around the top block.")
+        if ask("  Enter when ready, or s to stop: ") == "s":
+            return None
+        robot.get_ready_to_grab()
+        down_z = get_spot(key)[2] + layer * BLOCK_HEIGHT
+        robot.move_to(x, y, down_z, mode=1)  # straight down from hover
+        show_position(x, y, down_z)
+        print("  Nudge until it's centred on the top block, then save.")
+        return down_z
 
     while True:
         command = ask("> ")
@@ -272,6 +313,7 @@ def test_go_to():
                     continue
                 name = robot.spot_name(*key)
                 saved = []
+                saved_layer = LAYER_COMMANDS.get(level)  # None if saving at hover
 
                 if level in LAYER_COMMANDS:
                     layer = LAYER_COMMANDS[level]
@@ -302,10 +344,64 @@ def test_go_to():
                         saved.append("hover")
 
                 print(f"  Saved {name}: {', '.join(saved) or 'nothing'} -> calibration.csv")
-                still = ["d" if n == 0 else f"d{n + 1}" for n in range(stack_size(key))
-                         if not robot.saved_angles(name, n)]
-                if still:
-                    print(f"  Still to save here: {', '.join(still)} (go down, nudge, save).")
+
+                if layer_queue and saved_layer == layer_queue[0]:
+                    layer_queue.pop(0)
+                    if layer_queue:
+                        new_z = go_to_layer(layer_queue[0])
+                        if new_z is None:
+                            layer_queue.clear()
+                        else:
+                            z, level = new_z, f"d{layer_queue[0] + 1}"
+                            continue
+                    else:
+                        print(f"  Stack {name.upper()} done.")
+
+                still = [n for n in range(1, stack_size(key)) if not robot.saved_angles(name, n)]
+                if not robot.saved_angles(name):
+                    print("  Still needs its table position: d, nudge, save.")
+                elif still:
+                    print("  Next: 'layers' for the blocks above, or n for the next spot.")
+                else:
+                    print(f"  {len(robot.missing_spots())} pose(s) left. n = next spot.")
+                continue
+
+            if command == "layers":
+                if key is None or key[0] != "staging":
+                    print("Go to a staging stack first (r1-r5, y1-y5).")
+                    continue
+                name = robot.spot_name(*key)
+                if not robot.saved_angles(name):
+                    print("  Save the bottom block first: d, nudge, save.")
+                    continue
+                layer_queue[:] = [n for n in range(1, stack_size(key))
+                                  if not robot.saved_angles(name, n)]
+                if not layer_queue:
+                    print("  All layers saved here. To redo one, use d2 or d3, nudge, save.")
+                    continue
+                if level in LAYER_COMMANDS:
+                    robot.move_to(x, y, lift_height(key, z), mode=1)
+                    z, level = lift_height(key, z), "h"
+                new_z = go_to_layer(layer_queue[0])
+                if new_z is None:
+                    layer_queue.clear()
+                    continue
+                z, level = new_z, f"d{layer_queue[0] + 1}"
+                continue
+
+            if command == "n":
+                after = robot.spot_name(*key) if key else None
+                found_next = robot.next_to_calibrate(after)
+                if found_next is None:
+                    print("Everything is saved. Use check to test spots, or q.")
+                    continue
+                name, what = found_next
+                layer_queue.clear()
+                key, x, y, z, level = go_to(find_spot(name))
+                if what == "position":
+                    print("  Next: d, nudge, save.")
+                else:
+                    print("  Bottom block saved. Next: layers.")
                 continue
 
             if command in CHECK_COMMANDS:
@@ -343,19 +439,10 @@ def test_go_to():
 
             found = find_spot(command)
             if found is None:
-                print("Unknown command. Try 13, r1, y2, h, d, d2, d3, x+2, w, save, check or q.")
+                print("Unknown command. Try n, 13, r1, h, d, x+2, w, save, layers, check or q.")
                 continue
-
-            if level in LAYER_COMMANDS:  # always lift before moving sideways
-                robot.move_to(x, y, lift_height(key, z), mode=1)
-
-            label, key = found
-            x, y, _ = get_spot(key)
-            z = hover_height(key)
-            level = "h"
-            robot.move_to(x, y, z)
-            print(f"Over {label}" + (f" (stack of {stack_size(key)})" if key[0] == "staging" else ""))
-            show_position(x, y, z)
+            layer_queue.clear()
+            key, x, y, z, level = go_to(found)
 
         except RuntimeError as error:
             print(error)

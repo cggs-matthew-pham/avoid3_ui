@@ -100,16 +100,19 @@ The game moves **only** by replaying saved joint angles from
 - stacks `r1`-`r5`, `y1`-`y5`: `hover` + `down0`, `down1`, `down2` (one per
   block in the stack)
 
-After option 4, in `test_mycobot_squares.py`, option 1:
+After option 4, in `test_mycobot_squares.py`, option 1. The quick loop is
+**`n`, `d`, nudge, `save`**, repeated:
 
-1. Type a spot (`13`, `r2`). The arm goes to hover above it.
-2. `d` goes down to a block on the table. Calibrate holding a block (on the
-   cup, or between the fingers), so the pick and the drop are the same pose.
+1. `n` goes to the next spot that still needs saving (or type one: `13`, `r2`).
+   Spots not yet saved start from a guess corrected by the saved spots
+   around them, so later spots usually need only a nudge or two.
+2. `d` goes down to block height. Calibrate holding a block (on the cup, or
+   between the fingers), so the pick and the drop are the same pose.
 3. Nudge (`x+2`, `y-1`, `z-0.5`, max 10 mm each) until it's dead centre.
    Or use `teach` to place it by hand, then nudge.
 4. `save` stores `down0`, lifts straight up `HOVER_CLEARANCE` and stores `hover`.
-5. Stacks only: put 2 blocks on the spot, `d2`, nudge, `save` (stores `down1`).
-   Then 3 blocks, `d3`, nudge, `save` (stores `down2`).
+5. Stacks: after the bottom block, type `layers`. It asks you to stack 2
+   blocks, comes down onto the top one; nudge, `save`; then the same for 3.
 6. `check` / `check2` / `check3` replay the saved angles exactly as the game
    does, and log any drift to `check_log.csv`.
 
