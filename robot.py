@@ -116,7 +116,7 @@ SAG_PER_MM = 0.0
 # left-right (across the columns), so the fingers never reach forwards or
 # back. That keeps the far corners in reach and the near row off the base.
 ROW_PITCH = 25        # mm between row centres (towards / away from the robot)
-COLUMN_PITCH = 35     # mm between column centres (left / right)
+COLUMN_PITCH = 40     # mm between column centres (left / right): room for the open fingers
 
 # Where the sheet sits. Lay it landscape, long edge against the robot, with
 # the centre of the robot's base lined up with board column 4 (the middle of

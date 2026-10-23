@@ -65,9 +65,9 @@ rows, robot at the top edge:
                 PLAYER
 ```
 
-Rows are 25 mm apart and columns 35 mm apart. The gripper closes
+Rows are 25 mm apart and columns 40 mm apart. The gripper closes
 left-right (across the columns), so the fingers never reach forwards or
-back and the rows can be close. That keeps the far corners about 240 mm from
+back and the rows can be close. That keeps the far corners about 246 mm from
 the base (inside the 280 mm rated reach) and the nearest row about 115 mm out
 (well clear of the base). If your gripper closes towards / away from the
 robot, change `TOOL_DOWN`'s rz to 90 in `robot.py`.
@@ -93,16 +93,18 @@ and `row_pitch` / `column_pitch` in `hardware/board.scad`.
    (`NEAR_LIMIT`) are refused, because the arm folds over itself there.
 
 The sheet is designed for a 60 mm gap: the far corners are then about
-240 mm from the base and the nearest squares about 115 mm.
+246 mm from the base and the nearest squares about 115 mm.
 
 ## End effector
 
 `END_EFFECTOR` in `robot.py`: `"gripper"` (default) or `"suction"`.
 
-- **Gripper**: `GRIPPER_OPEN` / `GRIPPER_CLOSED` are `set_gripper_value`
-  numbers (0-100). Check which end is open with `g 0` / `g 100` in the
-  calibration tool first. Open only as wide as needed, so the fingers miss
-  the blocks next door. Coloured labels on top are fine.
+- **Gripper**: it should only ever open enough to go around a block, never
+  fully, or the fingers hit the blocks next door. Set `GRIPPER_OPEN` /
+  `GRIPPER_CLOSED` (`set_gripper_value` numbers, 0-100) with option 6 in
+  `test_mycobot_squares.py`: it shows which end is open, lets you try values
+  with a block in the fingers, and saves them. Do this before option 4.
+  Coloured labels on top are fine.
 - **Suction**: the pump is on GPIO 20 and the valve on GPIO 21, set up
   HIGH (LOW = on). `PUMP_ENABLED = False` by default; tick "Suction pump on"
   in the window, or use `pump` in the calibration tool. Keep block tops

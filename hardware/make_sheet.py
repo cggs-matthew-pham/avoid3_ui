@@ -23,7 +23,7 @@ from reportlab.pdfgen import canvas
 
 # ---- Layout (must match robot.py) ----
 ROW_PITCH = 25          # mm between row centres (towards / away from the robot)
-COLUMN_PITCH = 35       # mm between column centres (left / right)
+COLUMN_PITCH = 40       # mm between column centres (left / right): room for the open fingers
 EDGE_TO_TOP_ROW = 55    # mm from the robot edge of the paper to the centre of row 1-5
 SHEET_GAP = 60          # mm from the robot's turntable centre to the robot edge
 

@@ -622,6 +622,64 @@ its final place.
     return True
 
 
+# ---- Gripper open / close values ----
+
+def try_values(prompt, start):
+    """Let the user try gripper values until they're happy. Returns the last one."""
+    value = start
+    robot.set_gripper(value)
+    print(f"  Now at {value}. Type another number (0-100) to try, or Enter to keep {value}.")
+    while True:
+        text = ask(f"  {prompt} [{value}]: ")
+        if not text:
+            return value
+        try:
+            new = int(text)
+            if not 0 <= new <= 100:
+                raise ValueError
+        except ValueError:
+            print("  A whole number from 0 to 100, please.")
+            continue
+        value = new
+        robot.set_gripper(value)
+
+
+def setup_gripper():
+    if robot.END_EFFECTOR != "gripper":
+        print("Only for the gripper (END_EFFECTOR in robot.py is suction).")
+        return
+    print("""
+GRIPPER: HOW FAR IT OPENS AND CLOSES
+
+The gripper takes a number from 0 to 100. It should never open fully: the
+fingers would hit the blocks either side. Open = just wide enough to go
+around a block with 2-3 mm spare each side. Closed = holding a block
+firmly, without the servo straining (buzzing or getting warm).
+""")
+    robot.set_gripper(0)
+    end = ask("At 0, is the gripper open or closed? (o/c): ")
+    robot.set_gripper(100)
+    if end not in ("o", "c"):
+        print("Type o or c. Nothing changed.")
+        return
+    wider = "lower" if end == "o" else "higher"
+    print(f"So {wider} numbers open it wider.\n")
+
+    print("1. OPEN. Hold a block between the fingers (don't let them grip it).")
+    print("   Find the smallest opening that clears it with 2-3 mm each side.")
+    opened = try_values("Open value", robot.GRIPPER_OPEN)
+
+    print("\n2. CLOSED. Keep the block between the fingers.")
+    print("   Find the value that holds it firmly without straining.")
+    closed = try_values("Closed value", robot.GRIPPER_CLOSED)
+
+    robot.GRIPPER_OPEN, robot.GRIPPER_CLOSED = opened, closed
+    if save_setting("GRIPPER_OPEN", opened) and save_setting("GRIPPER_CLOSED", closed):
+        print(f"  Saved: GRIPPER_OPEN = {opened}, GRIPPER_CLOSED = {closed} in robot.py.")
+    robot.set_gripper(opened)
+    print("  Take the block out. Done.")
+
+
 # ---- Setting up the sheet ----
 
 SHEET_STEPS = """
@@ -817,6 +875,8 @@ def main():
               setup_sheet),
         "5": ("Measure grip height and offset again (after moving the sheet or changing the tool)",
               measure_grip_height),
+        "6": ("Gripper: set how far it opens and closes (do this before option 4)",
+              setup_gripper),
     }
 
     while True:

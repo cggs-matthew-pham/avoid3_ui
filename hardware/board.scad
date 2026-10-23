@@ -3,7 +3,7 @@
 // A 5 x 5 board plus a Red and a Yellow staging column of 5 pockets, each
 // holding a stack of 3 blocks. Same layout as the printed sheet
 // (avoid3_sheet_A4.pdf, from make_sheet.py): 7 columns by 5 rows, rows
-// 25 mm apart and columns 35 mm apart. The gripper closes left-right, so
+// 25 mm apart and columns 40 mm apart. The gripper closes left-right, so
 // only the columns need room for the open fingers.
 //
 // A block dropped a couple of mm off-centre lands on a sloped wall and
@@ -34,7 +34,7 @@
 // REACH: the console line "Reach:" gives the distance from the robot base
 // to the farthest pocket. Keep it under about 280 mm (the rated reach; the
 // arm has to point straight down there). With these defaults it is about
-// 240 mm. Check the gripper fingers still fit between neighbouring blocks
+// 246 mm. Check the gripper fingers still fit between neighbouring blocks
 // before making the pitches smaller.
 
 /* [What to show / export] */
@@ -55,7 +55,7 @@ staging_depth = 4;      // staging pockets: a little deeper to steady a 3-high s
 
 /* [Layout] */
 row_pitch      = 25;    // centre-to-centre, towards / away from the robot. Sheet: 25.
-column_pitch   = 35;    // centre-to-centre, left / right. Sheet: 35. Room for the open fingers.
+column_pitch   = 40;    // centre-to-centre, left / right. Sheet: 40. Room for the open fingers.
 staging_gap    = 0;     // extra space between the board and the staging columns. Sheet: 0.
 margin         = 8;     // border around everything
 thickness      = 7;     // board thickness (floor under pockets = thickness - depth)
